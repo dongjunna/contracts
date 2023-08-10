@@ -4,6 +4,8 @@ import {Registry} from "../common/Registry.sol";
 import {ProxyStorage} from "../common/misc/ProxyStorage.sol";
 import {ChainIdMixin} from "../common/mixin/ChainIdMixin.sol";
 
+// import {ICheckpointManager} from "./ICheckpointManager.sol";
+
 
 contract RootChainHeader {
     event NewHeaderBlock(

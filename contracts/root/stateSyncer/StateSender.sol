@@ -2,8 +2,9 @@ pragma solidity ^0.5.2;
 
 import {Ownable} from "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import {SafeMath} from "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import {IStateSender} from "./IStateSender.sol";
 
-contract StateSender is Ownable {
+contract StateSender is Ownable, IStateSender {
     using SafeMath for uint256;
 
     uint256 public counter;

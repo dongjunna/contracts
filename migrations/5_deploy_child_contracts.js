@@ -48,6 +48,7 @@ module.exports = async function(deployer, network, accounts) {
       true // _isERC721
     )
 
+    // TODO token contract address 수정 0x0000000000000000000000000000000000001010 -> a
     const maticToken = await MRC20.at('0x0000000000000000000000000000000000001010')
     const maticOwner = await maticToken.owner()
     if (maticOwner === '0x0000000000000000000000000000000000000000') {

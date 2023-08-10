@@ -35,8 +35,8 @@ contract RootChain is RootChainStorage, IRootChain {
         IStakeManager stakeManager = IStakeManager(registry.getStakeManagerAddress());
         uint256 _reward = stakeManager.checkSignatures(
             end.sub(start).add(1),
-            /**  
-                prefix 01 to data 
+            /**
+                prefix 01 to data
                 01 represents positive vote on data and 00 is negative vote
                 malicious validator can try to send 2/3 on negative vote so 01 is appended
              */

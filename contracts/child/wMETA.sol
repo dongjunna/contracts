@@ -1,23 +1,49 @@
 pragma solidity ^0.5.11;
 
 import "./BaseERC20NoSig.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+
 
 /**
  * @title Matic token contract
  * @notice This contract is an ECR20 like wrapper over native ether (matic token) transfers on the matic chain
  * @dev ERC20 methods have been made payable while keeping their method signature same as other ChildERC20s on Matic
  */
-contract MRC20 is BaseERC20NoSig {
-    event Transfer(address indexed from, address indexed to, uint256 value);
+contract wMETA is UUPSUpgradeable, ReentrancyGuardUpgradeable, Ownable {
+    // event Transfer(address indexed from, address indexed to, uint256 value);
+
+    event Deposit(
+      address indexed token,
+      address indexed from,
+      uint256 amount,
+      uint256 input1,
+      uint256 output1
+    );
+
+    event Withdraw(
+      address indexed token,
+      address indexed from,
+      uint256 amount,
+      uint256 input1,
+      uint256 output1
+    );
 
     uint256 public currentSupply = 0;
     uint8 private constant DECIMALS = 18;
     bool isInitialized;
 
+    address public token;
+    address public childChain;
+
     //TODO locked balance 관련 변수
     mapping(address => uint256) private _balance;
     mapping(address => uint256) private _lockedBalance;
     uint256 private _totalLockedBalance;
+    bool private revoked = false;
 
     constructor() public {}
 
@@ -27,11 +53,9 @@ contract MRC20 is BaseERC20NoSig {
         require(!isInitialized, "The contract is already initialized");
         isInitialized = true;
         token = _token;
+        childChain = _childChain;
         _transferOwnership(_childChain);
-    }
-
-    function setParent(address) public {
-        revert("Disabled feature");
+        //TODO 스테이킹 수량만큼 바로 deposit 및 lock
     }
 
     //TODO L1->L2 deposit: amount unlock
@@ -45,14 +69,21 @@ contract MRC20 is BaseERC20NoSig {
             "Insufficient amount or invalid user"
         );
 
+        //TODO 돈 언락해
+        _unlock(user, amount);
+
+        //TODO 돈 깎아
+        _balance[user] = _balance[user] - amount;
+
         // input balance
         uint256 input1 = balanceOf(user);
 
+        //TODO 사용자한테 돈 보내줘 contract -> user transfer
         // transfer amount to user
         address payable _user = address(uint160(user));
         _user.transfer(amount);
 
-        currentSupply = currentSupply.add(amount);
+        // currentSupply = currentSupply.add(amount);
 
         // deposit events
         emit Deposit(token, user, amount, input1, balanceOf(user));
@@ -62,61 +93,52 @@ contract MRC20 is BaseERC20NoSig {
     //TODO L1으로 돈을 보내고 싶으면 이 함수로 돈을 옮기고 -> 돈을 lock하고 -> 이벤트 발생
     // wemix의 stakingImp에서는,, withdraw가 stake를 위해 lock된 자산을 unlock하고 사용자에게 돌려주기 위함이고, 여기는 L1으로 자산을 보내기 위해 lock 하는 기능이어야 함
     function withdraw(uint256 amount) public payable {
+
+        //TODO 여기로 돈을 입금해,, 그리고 락해,, 그리고 위드로우 이벤트 !
         address user = msg.sender;
         // input balance
         uint256 input = balanceOf(user);
 
-        currentSupply = currentSupply.sub(amount);
-        // check for amount
+        // currentSupply = currentSupply.sub(amount);
+
+      // check for amount
         require(
             amount > 0 && msg.value == amount,
             "Insufficient amount"
         );
 
+        //TODO 돈 락해
+        _lock(user, amount);
+
+        //TODO 돈 더해
+        _balance[user] = _balance[user] + amount;
+
         // withdraw event
         emit Withdraw(token, user, amount, input, balanceOf(user));
-    }
-
-    function name() public pure returns (string memory) {
-        return "Matic Token";
-    }
-
-    function symbol() public pure returns (string memory) {
-        return "MATIC";
-    }
-
-    function decimals() public pure returns (uint8) {
-        return DECIMALS;
-    }
-
-    function totalSupply() public view returns (uint256) {
-        return 10000000000 * 10**uint256(DECIMALS);
     }
 
     function balanceOf(address account) public view returns (uint256) {
         return account.balance;
     }
 
-    /// @dev Function that is called when a user or another contract wants to transfer funds.
-    /// @param to Address of token receiver.
-    /// @param value Number of tokens to transfer.
-    /// @return Returns success of function call.
-    function transfer(address to, uint256 value) public payable returns (bool) {
-        if (msg.value != value) {
-            return false;
-        }
-        return _transferFrom(msg.sender, to, value);
+    function _lock(address payee, uint256 lockAmount) internal {
+      if (lockAmount == 0) return;
+      require(_balance[payee] >= lockAmount, "Lock amount should be equal or less than balance");
+      require(availableBalanceOf(payee) >= lockAmount, "Insufficient balance that can be locked");
+
+      _lockedBalance[payee] = _lockedBalance[payee] + lockAmount;
+
+      _totalLockedBalance = _totalLockedBalance + lockAmount;
     }
 
-    /**
-   * @dev _transfer is invoked by _transferFrom method that is inherited from BaseERC20.
-   * This enables us to transfer MaticEth between users while keeping the interface same as that of an ERC20 Token.
-   */
-    function _transfer(address sender, address recipient, uint256 amount)
-        internal
-    {
-        require(recipient != address(this), "can't send to MRC20");
-        address(uint160(recipient)).transfer(amount);
-        emit Transfer(sender, recipient, amount);
+    function _unlock(address payee, uint256 unlockAmount) internal {
+      if (unlockAmount == 0) return;
+
+      _lockedBalance[payee] = _lockedBalance[payee] - unlockAmount;
+      _totalLockedBalance = _totalLockedBalance - unlockAmount;
+    }
+
+    function availableBalanceOf(address payee) public override view returns (uint256) {
+      return _balance[payee] - _lockedBalance[payee];
     }
 }

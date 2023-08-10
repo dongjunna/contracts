@@ -38,6 +38,8 @@ contract ChildChain is Ownable, StateSyncerVerifier, StateReceiver {
         uint256 withrawCount
     );
 
+    //TODO L2에 배포한 wMETA 컨트랙트 배포하고 0x1010 수정
+    //TODO L1에 배포한 wMETA 컨트랙트 배포하고 key 수정
     constructor() public {
         //Mapping matic Token
         tokens[0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0] = 0x0000000000000000000000000000000000001010;
