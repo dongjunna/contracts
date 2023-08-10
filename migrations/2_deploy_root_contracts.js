@@ -161,8 +161,8 @@ const libDeps = [
 
 module.exports = async function(deployer, network, accounts) {
   if (!process.env.HEIMDALL_ID) {
-    console.log('HEIMDALL_ID is not set; defaulting to heimdall-P5rXwg')
-    process.env.HEIMDALL_ID = 'heimdall-P5rXwg'
+    console.log('HEIMDALL_ID is not set; defaulting to heimdall-DAqKXZ')
+    process.env.HEIMDALL_ID = 'heimdall-DAqKXZ'
   }
 
   deployer.then(async() => {
