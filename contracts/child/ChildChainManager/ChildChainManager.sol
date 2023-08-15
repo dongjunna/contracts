@@ -1,32 +1,30 @@
-pragma solidity 0.6.6;
+pragma solidity ^0.5.2;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import {IChildChainManager} from "./IChildChainManager.sol";
-import {IChildToken} from "../ChildToken/IChildToken.sol";
-import {Initializable} from "../../common/Initializable.sol";
-import {AccessControlMixin} from "../../common/AccessControlMixin.sol";
-import {IStateReceiver} from "../IStateReceiver.sol";
-
+import {IMetaLockable} from "../IMetaLockable.sol";
+import {Initializable} from "../../common/mixin/Initializable.sol";
+// import {AccessControlMixin} from "../../common/AccessControlMixin.sol";
+import {IStateReceiver} from "../bor/IStateReceiver.sol";
 
 contract ChildChainManager is
+    Ownable,
     IChildChainManager,
     Initializable,
-    AccessControlMixin,
+    // AccessControlMixin,
     IStateReceiver
 {
     bytes32 public constant DEPOSIT = keccak256("DEPOSIT");
     bytes32 public constant MAP_TOKEN = keccak256("MAP_TOKEN");
-    bytes32 public constant MAPPER_ROLE = keccak256("MAPPER_ROLE");
-    bytes32 public constant STATE_SYNCER_ROLE = keccak256("STATE_SYNCER_ROLE");
+//    bytes32 public constant MAPPER_ROLE = keccak256("MAPPER_ROLE");
+//    bytes32 public constant STATE_SYNCER_ROLE = keccak256("STATE_SYNCER_ROLE");
 
     mapping(address => address) public rootToChildToken;
     mapping(address => address) public childToRootToken;
 
     function initialize(address _owner) external initializer {
-        _setupContractId("ChildChainManager");
-        _setupRole(DEFAULT_ADMIN_ROLE, _owner);
-        _setupRole(MAPPER_ROLE, _owner);
-        _setupRole(STATE_SYNCER_ROLE, _owner);
+        _transferOwnership(_owner);
     }
 
     /**
@@ -36,11 +34,7 @@ contract ChildChainManager is
      * @param rootToken address of token on root chain
      * @param childToken address of token on child chain
      */
-    function mapToken(address rootToken, address childToken)
-        external
-        override
-        only(MAPPER_ROLE)
-    {
+    function mapToken(address rootToken, address childToken) external onlyOwner {
         _mapToken(rootToken, childToken);
     }
 
@@ -54,11 +48,8 @@ contract ChildChainManager is
      * in case of deposit, `syncData` is encoded address `user`, address `rootToken` and bytes `depositData`
      * `depositData` is token specific data (amount in case of ERC20). It is passed as is to child token
      */
-    function onStateReceive(uint256, bytes calldata data)
-        external
-        override
-        only(STATE_SYNCER_ROLE)
-    {
+    function onStateReceive(uint256, bytes calldata data) external onlyOwner {
+        // only(STATE_SYNCER_ROLE)
         (bytes32 syncType, bytes memory syncData) = abi.decode(
             data,
             (bytes32, bytes)
@@ -85,7 +76,7 @@ contract ChildChainManager is
     function cleanMapToken(
         address rootToken,
         address childToken
-    ) external override only(MAPPER_ROLE) {
+    ) external onlyOwner {
         rootToChildToken[rootToken] = address(0);
         childToRootToken[childToken] = address(0);
 
@@ -118,7 +109,10 @@ contract ChildChainManager is
             childTokenAddress != address(0x0),
             "ChildChainManager: TOKEN_NOT_MAPPED"
         );
-        IChildToken childTokenContract = IChildToken(childTokenAddress);
-        childTokenContract.deposit(user, depositData);
+
+        uint256 amount = abi.decode(depositData, (uint256));
+
+        IMetaLockable childTokenContract = IMetaLockable(childTokenAddress);
+        childTokenContract.deposit(user, amount);
     }
 }

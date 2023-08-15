@@ -3,12 +3,8 @@ const utils = require('./utils')
 
 const bluebird = require('bluebird')
 
-const SafeMath = artifacts.require(
-  'openzeppelin-solidity/contracts/math/SafeMath.sol'
-)
-
+const SafeMath = artifacts.require('openzeppelin-solidity/contracts/math/SafeMath.sol')
 const RLPReader = artifacts.require('solidity-rlp/contracts/RLPReader.sol')
-
 const BytesLib = artifacts.require('BytesLib')
 const Common = artifacts.require('Common')
 const ECVerify = artifacts.require('ECVerify')
@@ -55,7 +51,13 @@ const StakeManagerExtension = artifacts.require('StakeManagerExtension')
 const EventsHub = artifacts.require('EventsHub')
 const EventsHubProxy = artifacts.require('EventsHubProxy')
 
-const ZeroAddress = '0x0000000000000000000000000000000000000000';
+// pos-portal: contracts
+const RootChainManager = artifacts.require('RootChainManager')
+const RootChainManagerProxy = artifacts.require('RootChainManagerProxy')
+
+const META = artifacts.require('META')
+
+const ZeroAddress = '0x0000000000000000000000000000000000000000'
 
 const libDeps = [
   {
@@ -71,7 +73,8 @@ const libDeps = [
       MintableERC721Predicate,
       MarketplacePredicate,
       MarketplacePredicateTest,
-      TransferWithSigPredicate
+      TransferWithSigPredicate,
+      RootChainManager
     ]
   },
   {
@@ -94,12 +97,19 @@ const libDeps = [
       MintableERC721Predicate,
       StakeManager,
       StakeManagerTestable,
-      StakeManagerTest
+      StakeManagerTest,
+      RootChainManager
     ]
   },
   {
     lib: MerklePatriciaProof,
-    contracts: [WithdrawManager, ERC20Predicate, ERC721Predicate, MintableERC721Predicate]
+    contracts: [
+      WithdrawManager,
+      ERC20Predicate,
+      ERC721Predicate,
+      MintableERC721Predicate,
+      RootChainManager
+    ]
   },
   {
     lib: PriorityQueue,
@@ -113,7 +123,8 @@ const libDeps = [
       ERC721Predicate,
       MintableERC721Predicate,
       MarketplacePredicate,
-      MarketplacePredicateTest
+      MarketplacePredicateTest,
+      RootChainManager
     ]
   },
   {
@@ -125,7 +136,8 @@ const libDeps = [
       ERC721Predicate,
       MintableERC721Predicate,
       MarketplacePredicate,
-      MarketplacePredicateTest
+      MarketplacePredicateTest,
+      RootChainManager
     ]
   },
   {
@@ -142,12 +154,17 @@ const libDeps = [
       SlashingManager,
       StakingInfo,
       StateSender,
-      StakeManagerExtension
+      StakeManagerExtension,
+      RootChainManager
     ]
   },
   {
     lib: SafeMath,
-    contracts: [RootChain, ERC20Predicate]
+    contracts: [
+      RootChain,
+      ERC20Predicate,
+      RootChainManager
+    ]
   },
   {
     lib: TransferWithSigUtils,
@@ -176,11 +193,14 @@ module.exports = async function(deployer, network, accounts) {
     await deployer.deploy(Registry, GovernanceProxy.address)
     await deployer.deploy(ValidatorShareFactory)
     await deployer.deploy(ValidatorShare)
-    const maticToken = await deployer.deploy(TestToken, 'MATIC', 'MATIC')
+    // const maticToken = await deployer.deploy(TestToken, 'MATIC', 'MATIC')
     await deployer.deploy(TestToken, 'Test ERC20', 'TEST20')
     await deployer.deploy(RootERC721, 'Test ERC721', 'TST721')
     await deployer.deploy(StakingInfo, Registry.address)
     await deployer.deploy(StakingNFT, 'Matic Validator', 'MV')
+
+    // pos-portal: L1 Meta Token deploy
+    const metaToken = await deployer.deploy(META, 'META', 'META')
 
     await deployer.deploy(RootChain)
     await deployer.deploy(RootChainProxy, RootChain.address, Registry.address, process.env.HEIMDALL_ID)
@@ -188,24 +208,19 @@ module.exports = async function(deployer, network, accounts) {
     await deployer.deploy(StakeManagerTestable)
     await deployer.deploy(StakeManagerTest)
 
+    // pos-portal: rootChainManager deploy
+    {
+      const rootChainManager = await deployer.deploy(RootChainManager)
+      const rootChainManagerProxy = await deployer.deploy(RootChainManagerProxy, RootChainManager.address, ZeroAddress)
+      await rootChainManagerProxy.updateAndCall(RootChainManager.address, rootChainManager.contract.methods.initialize(accounts[0]).encodeABI())
+    }
+
     await deployer.deploy(DepositManager)
-    await deployer.deploy(
-      DepositManagerProxy,
-      DepositManager.address,
-      Registry.address,
-      RootChainProxy.address,
-      GovernanceProxy.address
-    )
+    await deployer.deploy(DepositManagerProxy, DepositManager.address, Registry.address, RootChainProxy.address, GovernanceProxy.address)
 
     await deployer.deploy(ExitNFT, Registry.address)
     await deployer.deploy(WithdrawManager)
-    await deployer.deploy(
-      WithdrawManagerProxy,
-      WithdrawManager.address,
-      Registry.address,
-      RootChainProxy.address,
-      ExitNFT.address
-    )
+    await deployer.deploy(WithdrawManagerProxy, WithdrawManager.address, Registry.address, RootChainProxy.address, ExitNFT.address)
 
     {
       let eventsHubImpl = await deployer.deploy(EventsHub)
@@ -223,7 +238,7 @@ module.exports = async function(deployer, network, accounts) {
       stakeManager.contract.methods.initialize(
         Registry.address,
         RootChainProxy.address,
-        maticToken.address,
+        metaToken.address,
         StakingNFT.address,
         StakingInfo.address,
         ValidatorShareFactory.address,
@@ -240,36 +255,13 @@ module.exports = async function(deployer, network, accounts) {
     await deployer.deploy(MaticWeth)
 
     await Promise.all([
-      deployer.deploy(
-        ERC20Predicate,
-        WithdrawManagerProxy.address,
-        DepositManagerProxy.address,
-        Registry.address
-      ),
-      deployer.deploy(
-        ERC721Predicate,
-        WithdrawManagerProxy.address,
-        DepositManagerProxy.address
-      ),
-      deployer.deploy(
-        MintableERC721Predicate,
-        WithdrawManagerProxy.address,
-        DepositManagerProxy.address
-      ),
+      deployer.deploy(ERC20Predicate, WithdrawManagerProxy.address, DepositManagerProxy.address, Registry.address),
+      deployer.deploy(ERC721Predicate, WithdrawManagerProxy.address, DepositManagerProxy.address),
+      deployer.deploy(MintableERC721Predicate, WithdrawManagerProxy.address, DepositManagerProxy.address),
       deployer.deploy(Marketplace),
       deployer.deploy(MarketplacePredicateTest),
-      deployer.deploy(
-        MarketplacePredicate,
-        RootChain.address,
-        WithdrawManagerProxy.address,
-        Registry.address
-      ),
-      deployer.deploy(
-        TransferWithSigPredicate,
-        RootChain.address,
-        WithdrawManagerProxy.address,
-        Registry.address
-      )
+      deployer.deploy(MarketplacePredicate, RootChain.address, WithdrawManagerProxy.address, Registry.address),
+      deployer.deploy(TransferWithSigPredicate, RootChain.address, WithdrawManagerProxy.address, Registry.address)
     ])
 
     const contractAddresses = {
@@ -278,6 +270,8 @@ module.exports = async function(deployer, network, accounts) {
         RootChain: RootChain.address,
         GovernanceProxy: GovernanceProxy.address,
         RootChainProxy: RootChainProxy.address,
+        RootChainManager: RootChainManager.address,
+        RootChainManagerProxy: RootChainManagerProxy.address,
         DepositManager: DepositManager.address,
         DepositManagerProxy: DepositManagerProxy.address,
         WithdrawManager: WithdrawManager.address,
@@ -295,7 +289,7 @@ module.exports = async function(deployer, network, accounts) {
           TransferWithSigPredicate: TransferWithSigPredicate.address
         },
         tokens: {
-          MaticToken: maticToken.address,
+          META: metaToken.address,
           MaticWeth: MaticWeth.address,
           TestToken: TestToken.address,
           RootERC721: RootERC721.address

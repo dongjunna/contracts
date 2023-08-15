@@ -26,7 +26,7 @@ async function updateContractMap(governance, registry, nameHash, value) {
 module.exports = async function(deployer) {
   deployer.then(async() => {
     const contractAddresses = utils.getContractAddresses()
-    const governance = await Governance.at(contractAddresses.root.GovernanceProxy)
+    const governance = await Governance.at(contractAddresses.root.GoverceProxy)
 
     await bluebird
       .all([

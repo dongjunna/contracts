@@ -1,9 +1,10 @@
-pragma solidity 0.6.6;
+pragma solidity ^0.5.2;
 
 import {IStateSender} from "../stateSyncer/IStateSender.sol";
 import {ICheckpointManager} from "../ICheckpointManager.sol";
+import {ProxyStorage} from "../../common/misc/ProxyStorage.sol";
 
-abstract contract RootChainManagerStorage {
+contract RootChainManagerStorage is ProxyStorage {
     mapping(bytes32 => address) public typeToPredicate;
     mapping(address => address) public rootToChildToken;
     mapping(address => address) public childToRootToken;
@@ -13,3 +14,14 @@ abstract contract RootChainManagerStorage {
     ICheckpointManager internal _checkpointManager;
     address public childChainManagerAddress;
 }
+
+//contract RootChainStorage is ProxyStorage, RootChainHeader, ChainIdMixin {
+//  bytes32 public heimdallId;
+//  uint8 public constant VOTE_TYPE = 2;
+//
+//  uint16 internal constant MAX_DEPOSITS = 10000;
+//  uint256 public _nextHeaderBlock = MAX_DEPOSITS;
+//  uint256 internal _blockDepositId = 1;
+//  mapping(uint256 => HeaderBlock) public headerBlocks;
+//  Registry internal registry;
+//}

@@ -1,6 +1,6 @@
-pragma solidity 0.6.6;
+pragma solidity >=0.4.22 <0.6.0;
 
-abstract contract ContextMixin {
+contract ContextMixin {
     function msgSender()
         internal
         view

@@ -1,6 +1,6 @@
-pragma solidity 0.6.6;
+pragma solidity ^0.5.2;
 
-import {UpgradableProxy} from "../../common/Proxy/UpgradableProxy.sol";
+import {UpgradableProxy} from "../../common/misc/UpgradableProxy.sol";
 
 
 contract ChildChainManagerProxy is UpgradableProxy {

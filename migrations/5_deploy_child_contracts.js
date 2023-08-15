@@ -1,69 +1,35 @@
 const utils = require('./utils')
 
-const SafeMath = artifacts.require(
-  'openzeppelin-solidity/contracts/math/SafeMath.sol'
-)
-const ChildChain = artifacts.require('ChildChain')
-const MRC20 = artifacts.require('MRC20')
+const ChildChainManager = artifacts.require('ChildChainManager')
+const ChildChainManagerProxy = artifacts.require('ChildChainManagerProxy')
+const MetaLockable = artifacts.require('MetaLockable')
 
 module.exports = async function(deployer, network, accounts) {
-  if (deployer.network !== 'bor') {
-    return
-  }
-
-  console.log(deployer.network);
+  console.log(deployer.network)
 
   deployer.then(async() => {
-    await deployer.deploy(SafeMath)
-    await deployer.link(SafeMath, [ChildChain])
-    await deployer.deploy(ChildChain)
+    const childChainManager = await deployer.deploy(ChildChainManager)
+    const childChainManagerProxy = await deployer.deploy(ChildChainManagerProxy, '0x0000000000000000000000000000000000000000')
+    await childChainManagerProxy.updateAndCall(childChainManager.address, childChainManager.contract.methods.initialize(accounts[0]).encodeABI())
 
-    const childChain = await ChildChain.deployed()
     const contractAddresses = utils.getContractAddresses()
 
-    let MaticWeth = await childChain.addToken(
-      accounts[0],
-      contractAddresses.root.tokens.MaticWeth,
-      'ETH on Matic',
-      'ETH',
-      18,
-      false // _isERC721
-    )
+    const metaLockable = await deployer.deploy(MetaLockable)
+    await metaLockable.contract.methods.initialize(ChildChainManager.address, contractAddresses.root.tokens.META)
 
-    let TestToken = await childChain.addToken(
-      accounts[0],
-      contractAddresses.root.tokens.TestToken,
-      'Test Token',
-      'TST',
-      18,
-      false // _isERC721
-    )
+    // TODO contract address 수정 0x0000000000000000000000000000000000001010 -> a
+    // const meta = await MetaLockable.at('0x0000000000000000000000000000000000001010')
+    // const metaOwner = await meta.owner()
+    // if (metaOwner === '0x0000000000000000000000000000000000000000') {
+    //   await meta.initialize(ChildChainManager.address, contractAddresses.root.tokens.META)
+    // }
 
-    let RootERC721 = await childChain.addToken(
-      accounts[0],
-      contractAddresses.root.tokens.RootERC721,
-      'Test ERC721',
-      'TST721',
-      0,
-      true // _isERC721
-    )
-
-    // TODO token contract address 수정 0x0000000000000000000000000000000000001010 -> a
-    const maticToken = await MRC20.at('0x0000000000000000000000000000000000001010')
-    const maticOwner = await maticToken.owner()
-    if (maticOwner === '0x0000000000000000000000000000000000000000') {
-      // matic contract at 0x1010 can only be initialized once, after the bor image starts to run
-      await maticToken.initialize(ChildChain.address, contractAddresses.root.tokens.MaticToken)
-    }
-    await childChain.mapToken(contractAddresses.root.tokens.MaticToken, '0x0000000000000000000000000000000000001010', false)
+    await childChainManager.mapToken(contractAddresses.root.tokens.META, MetaLockable.address, false)
 
     contractAddresses.child = {
-      ChildChain: ChildChain.address,
+      ChildChain: ChildChainManager.address,
       tokens: {
-        MaticWeth: MaticWeth.logs.find(log => log.event === 'NewToken').args.token,
-        MaticToken: '0x0000000000000000000000000000000000001010',
-        TestToken: TestToken.logs.find(log => log.event === 'NewToken').args.token,
-        RootERC721: RootERC721.logs.find(log => log.event === 'NewToken').args.token
+        META: MetaLockable.address
       }
     }
     utils.writeContractAddresses(contractAddresses)

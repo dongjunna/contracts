@@ -1,36 +1,41 @@
-pragma solidity 0.6.6;
+pragma solidity >=0.4.22 <0.6.0;
 
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {SafeMath} from "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import {IRootChainManager} from "./IRootChainManager.sol";
 import {RootChainManagerStorage} from "./RootChainManagerStorage.sol";
 import {IStateSender} from "../stateSyncer/IStateSender.sol";
 // import {ICheckpointManager} from "../ICheckpointManager.sol";
-import {RootChainHeader} from "../RootChainStorage.sol";
+import {ICheckpointManager} from "../ICheckpointManager.sol";
 import {RLPReader} from "solidity-rlp/contracts/RLPReader.sol";
 import {ExitPayloadReader} from "../../common/lib/ExitPayloadReader.sol";
 import {MerklePatriciaProof} from "../../common/lib/MerklePatriciaProof.sol";
 import {Merkle} from "../../common/lib/Merkle.sol";
-import {ITokenPredicate} from "../TokenPredicates/ITokenPredicate.sol";
+// import {ITokenPredicate} from "../TokenPredicates/ITokenPredicate.sol";
 import {Initializable} from "../../common/mixin/Initializable.sol";
-import {NativeMetaTransaction} from "../../common/lib/NativeMetaTransaction.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {AccessControlMixin} from "../../common/lib/AccessControlMixin.sol";
-import {ContextMixin} from "../../common/lib/ContextMixin.sol";
-import {IMETA} from "../../common/tokens/IMETA.sol";
+// import {NativeMetaTransaction} from "../../common/lib/NativeMetaTransaction.sol";
+// import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+// import {AccessControlMixin} from "../../common/lib/AccessControlMixin.sol";
+// import {ContextMixin} from "../../common/lib/ContextMixin.sol";
+import {Ownable} from "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import {META} from "../../common/tokens/META.sol";
 
 contract RootChainManager is
+    Ownable,
     IRootChainManager,
     Initializable,
-    AccessControl, // included to match old storage layout while upgrading
-    RootChainManagerStorage, // created to match old storage layout while upgrading
-    AccessControlMixin,
-    NativeMetaTransaction,
-    ContextMixin
+    // AccessControl, // included to match old storage layout while upgrading
+    RootChainManagerStorage // created to match old storage layout while upgrading
+    // AccessControlMixin,
+    // NativeMetaTransaction,
+    // ContextMixin
 {
     using ExitPayloadReader for bytes;
     using ExitPayloadReader for ExitPayloadReader.ExitPayload;
     using ExitPayloadReader for ExitPayloadReader.Log;
     using ExitPayloadReader for ExitPayloadReader.Receipt;
+
+    using RLPReader for bytes;
+    using RLPReader for RLPReader.RLPItem;
 
     using Merkle for bytes32;
     using SafeMath for uint256;
@@ -41,22 +46,21 @@ contract RootChainManager is
     address public constant ETHER_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     bytes32 public constant MAPPER_ROLE = keccak256("MAPPER_ROLE");
 
-    function _msgSender()
-        internal
-        override
-        view
-        returns (address payable sender)
-    {
-        return ContextMixin.msgSender();
-    }
+//    function _msgSender()
+//        internal
+//        view
+//        returns (address payable sender)
+//    {
+//        return ContextMixin.msgSender();
+//    }
 
     /**
      * @notice Deposit ether by directly sending to the contract
      * The account sending ether receives WETH on child chain
      */
-    receive() external payable {
-        _depositEtherFor(_msgSender());
-    }
+//    receive() external payable {
+//        _depositEtherFor(msg.sender);
+//    }
 
     /**
      * @notice Initialize the contract after it has been proxified
@@ -69,27 +73,24 @@ contract RootChainManager is
         external
         initializer
     {
-        _initializeEIP712("RootChainManager");
-        _setupContractId("RootChainManager");
-        _setupRole(DEFAULT_ADMIN_ROLE, _owner);
-        _setupRole(MAPPER_ROLE, _owner);
+        _transferOwnership(_owner);
     }
 
     // adding seperate function setupContractId since initialize is already called with old implementation
-    function setupContractId()
-        external
-        only(DEFAULT_ADMIN_ROLE)
-    {
-        _setupContractId("RootChainManager");
-    }
+//    function setupContractId()
+//        external
+//        only(DEFAULT_ADMIN_ROLE)
+//    {
+//        _setupContractId("RootChainManager");
+//    }
 
     // adding seperate function initializeEIP712 since initialize is already called with old implementation
-    function initializeEIP712()
-        external
-        only(DEFAULT_ADMIN_ROLE)
-    {
-        _setDomainSeperator("RootChainManager");
-    }
+//    function initializeEIP712()
+//        external
+//        only(DEFAULT_ADMIN_ROLE)
+//    {
+//        _setDomainSeperator("RootChainManager");
+//    }
 
     /**
      * @notice Set the state sender, callable only by admins
@@ -97,10 +98,7 @@ contract RootChainManager is
      * It is used to send bytes from root to child chain
      * @param newStateSender address of state sender contract
      */
-    function setStateSender(address newStateSender)
-        external
-        only(DEFAULT_ADMIN_ROLE)
-    {
+    function setStateSender(address newStateSender) external onlyOwner {
         require(newStateSender != address(0), "RootChainManager: BAD_NEW_STATE_SENDER");
         _stateSender = IStateSender(newStateSender);
     }
@@ -118,12 +116,9 @@ contract RootChainManager is
      * @dev This should be the plasma contract responsible for keeping track of checkpoints
      * @param newCheckpointManager address of checkpoint manager contract
      */
-    function setCheckpointManager(address newCheckpointManager)
-        external
-        only(DEFAULT_ADMIN_ROLE)
-    {
+    function setCheckpointManager(address newCheckpointManager) external onlyOwner {
         require(newCheckpointManager != address(0), "RootChainManager: BAD_NEW_CHECKPOINT_MANAGER");
-        _checkpointManager = RootChainHeader(newCheckpointManager);
+        _checkpointManager = ICheckpointManager(newCheckpointManager);
     }
 
     /**
@@ -136,13 +131,10 @@ contract RootChainManager is
 
     /**
      * @notice Set the child chain manager, callable only by admins
-     * @dev This should be the contract responsible to receive deposit bytes on child chain
+     * @dev This should be the contract responsible to receive deposit bytes on_checkpointManager child chain
      * @param newChildChainManager address of child chain manager contract
      */
-    function setChildChainManagerAddress(address newChildChainManager)
-        external
-        only(DEFAULT_ADMIN_ROLE)
-    {
+    function setChildChainManagerAddress(address newChildChainManager) external onlyOwner {
         require(newChildChainManager != address(0x0), "RootChainManager: INVALID_CHILD_CHAIN_ADDRESS");
         childChainManagerAddress = newChildChainManager;
     }
@@ -153,11 +145,7 @@ contract RootChainManager is
      * @param tokenType bytes32 unique identifier for the token type
      * @param predicateAddress address of token predicate address
      */
-    function registerPredicate(bytes32 tokenType, address predicateAddress)
-        external
-        override
-        only(DEFAULT_ADMIN_ROLE)
-    {
+    function registerPredicate(bytes32 tokenType, address predicateAddress) external onlyOwner {
         typeToPredicate[tokenType] = predicateAddress;
         emit PredicateRegistered(tokenType, predicateAddress);
     }
@@ -168,11 +156,7 @@ contract RootChainManager is
      * @param childToken address of token on child chain
      * @param tokenType bytes32 unique identifier for the token type
      */
-    function mapToken(
-        address rootToken,
-        address childToken,
-        bytes32 tokenType
-    ) external override only(MAPPER_ROLE) {
+    function mapToken(address rootToken, address childToken, bytes32 tokenType) external onlyOwner {
         // explicit check if token is already mapped to avoid accidental remaps
         require(
             rootToChildToken[rootToken] == address(0) &&
@@ -187,10 +171,7 @@ contract RootChainManager is
      * @param rootToken address of token on root chain. Since rename token was introduced later stage,
      * clean method is used to clean pollulated mapping
      */
-    function cleanMapToken(
-        address rootToken,
-        address childToken
-    ) external override only(DEFAULT_ADMIN_ROLE) {
+    function cleanMapToken(address rootToken, address childToken) external onlyOwner {
         rootToChildToken[rootToken] = address(0);
         childToRootToken[childToken] = address(0);
         tokenToType[rootToken] = bytes32(0);
@@ -205,11 +186,7 @@ contract RootChainManager is
      * @param childToken address of token on child chain
      * @param tokenType bytes32 unique identifier for the token type
      */
-    function remapToken(
-        address rootToken,
-        address childToken,
-        bytes32 tokenType
-    ) external override only(DEFAULT_ADMIN_ROLE) {
+    function remapToken(address rootToken, address childToken, bytes32 tokenType) external onlyOwner {
         // cleanup old mapping
         address oldChildToken = rootToChildToken[rootToken];
         address oldRootToken = childToRootToken[childToken];
@@ -226,11 +203,7 @@ contract RootChainManager is
         _mapToken(rootToken, childToken, tokenType);
     }
 
-    function _mapToken(
-        address rootToken,
-        address childToken,
-        bytes32 tokenType
-    ) private {
+    function _mapToken(address rootToken, address childToken, bytes32 tokenType) private {
         require(
             typeToPredicate[tokenType] != address(0x0),
             "RootChainManager: TOKEN_TYPE_NOT_SUPPORTED"
@@ -255,9 +228,9 @@ contract RootChainManager is
      * Use Matic tokens deposited using plasma mechanism for that
      * @param user address of account that should receive WETH on child chain
      */
-    function depositEtherFor(address user) external override payable {
-        _depositEtherFor(user);
-    }
+//    function depositEtherFor(address user) external payable {
+//        _depositEtherFor(user);
+//    }
 
     /**
      * @notice Move tokens from root to child chain
@@ -266,11 +239,7 @@ contract RootChainManager is
      * @param rootToken address of token that is being deposited
      * @param depositData bytes data that is sent to predicate and child token contracts to handle deposit
      */
-    function depositFor(
-        address user,
-        address rootToken,
-        bytes calldata depositData
-    ) external override {
+    function depositFor(address user, address rootToken, bytes calldata depositData) external {
         require(
             rootToken != ETHER_ADDRESS,
             "RootChainManager: INVALID_ROOT_TOKEN"
@@ -278,17 +247,17 @@ contract RootChainManager is
         _depositFor(user, rootToken, depositData);
     }
 
-    function _depositEtherFor(address user) private {
-        bytes memory depositData = abi.encode(msg.value);
-        _depositFor(user, ETHER_ADDRESS, depositData);
-
-        // payable(typeToPredicate[tokenToType[ETHER_ADDRESS]]).transfer(msg.value);
-        // transfer doesn't work as expected when receiving contract is proxified so using call
-        (bool success, /* bytes memory data */) = typeToPredicate[tokenToType[ETHER_ADDRESS]].call{value: msg.value}("");
-        if (!success) {
-            revert("RootChainManager: ETHER_TRANSFER_FAILED");
-        }
-    }
+//    function _depositEtherFor(address user) private {
+//        bytes memory depositData = abi.encode(msg.value);
+//        _depositFor(user, ETHER_ADDRESS, depositData);
+//
+//        // payable(typeToPredicate[tokenToType[ETHER_ADDRESS]]).transfer(msg.value);
+//        // transfer doesn't work as expected when receiving contract is proxified so using call
+//        (bool success, /* bytes memory data */) = typeToPredicate[tokenToType[ETHER_ADDRESS]].call{value: msg.value}("");
+//        if (!success) {
+//            revert("RootChainManager: ETHER_TRANSFER_FAILED");
+//        }
+//    }
 
     function _depositFor(
         address user,
@@ -301,11 +270,11 @@ contract RootChainManager is
                tokenType != 0,
             "RootChainManager: TOKEN_NOT_MAPPED"
         );
-        address predicateAddress = typeToPredicate[tokenType];
-        require(
-            predicateAddress != address(0),
-            "RootChainManager: INVALID_TOKEN_TYPE"
-        );
+//        address predicateAddress = typeToPredicate[tokenType];
+//        require(
+//            predicateAddress != address(0),
+//            "RootChainManager: INVALID_TOKEN_TYPE"
+//        );
         require(
             user != address(0),
             "RootChainManager: INVALID_USER"
@@ -315,12 +284,12 @@ contract RootChainManager is
         uint256 amount = abi.decode(depositData, (uint256));
 
         //TODO 토큰 설정
-        meta = IMETA(rootToken);
+        META meta = META(rootToken);
 
         //TODO 사용자 -> 이 컨트랙트 토큰 트랜스퍼
         meta.transferFrom(user, address(this), amount);
 
-        meta.burn(user, amount);
+        meta.burn(amount);
 
         //TODO burn으로
 //        ITokenPredicate(predicateAddress).lockTokens(
@@ -354,7 +323,7 @@ contract RootChainManager is
      *  8 - branchMask - 32 bits denoting the path of receipt in merkle tree
      *  9 - receiptLogIndex - Log Index to read from the receipt
      */
-    function exit(bytes calldata inputData) external override {
+    function exit(bytes calldata inputData) external {
         ExitPayloadReader.ExitPayload memory payload = inputData.toExitPayload();
 
         bytes memory branchMaskBytes = payload.getBranchMaskAsBytes();
@@ -366,7 +335,7 @@ contract RootChainManager is
                 // first 2 nibbles are dropped while generating nibble array
                 // this allows branch masks that are valid but bypass exitHash check (changing first 2 nibbles only)
                 // so converting to nibble array and then hashing it
-                MerklePatriciaProof._getNibbleArray(branchMaskBytes),
+                // TODO 임시: MerklePatriciaProof._getNibbleArray(branchMaskBytes),
                 payload.getReceiptLogIndex()
             )
         );
@@ -420,18 +389,22 @@ contract RootChainManager is
             payload.getBlockProof()
         );
 
-      //TODO exitToken -> mintToken 개발
+        //TODO user decoding
+        RLPReader.RLPItem[] memory logRLPList = log.toRlpBytes().toRlpItem().toList();
+        RLPReader.RLPItem[] memory logTopicRLPList = logRLPList[1].toList();
 
-      //TODO depositFor amount decoding
-        uint256 amount = abi.decode(depositData, (uint256));
+        address withdrawal = address(logTopicRLPList[1].toUint());
+
+        //TODO depositFor amount decoding
+        uint256 amount = logRLPList[2].toUint();
 
         //TODO 토큰 설정
-        meta = IMETA(rootToken);
+        META meta = META(rootToken);
 
         meta.mint(address(this), amount);
 
         //TODO 이 컨트랙트 -> 사용자 토큰 트랜스퍼
-        meta.transfer(user, amount);
+        meta.transfer(withdrawal, amount);
 
 //        ITokenPredicate(predicateAddress).exitTokens(
 //            rootToken,
