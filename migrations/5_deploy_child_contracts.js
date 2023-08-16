@@ -10,7 +10,7 @@ module.exports = async function(deployer, network, accounts) {
   deployer.then(async() => {
     const childChainManager = await deployer.deploy(ChildChainManager)
     const childChainManagerProxy = await deployer.deploy(ChildChainManagerProxy, '0x0000000000000000000000000000000000000000')
-    await childChainManagerProxy.updateAndCall(childChainManager.address, childChainManager.contract.methods.initialize(accounts[0]).encodeABI())
+    await childChainManagerProxy.updateAndCall(ChildChainManager.address, childChainManager.contract.methods.initialize(accounts[0]).encodeABI())
 
     const contractAddresses = utils.getContractAddresses()
 
