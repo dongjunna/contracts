@@ -58,7 +58,7 @@ module.exports = async function(deployer, network, accounts) {
       registry.address,
       registry.contract.methods.updateContractMap(
         ethUtils.keccak256('childChain'),
-        contractAddresses.child.ChildChain
+        contractAddresses.child.ChildChainManager
       ).encodeABI()
     )
 

@@ -5,7 +5,6 @@ import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import {IChildChainManager} from "./IChildChainManager.sol";
 import {IMetaLockable} from "../IMetaLockable.sol";
 import {Initializable} from "../../common/mixin/Initializable.sol";
-// import {AccessControlMixin} from "../../common/AccessControlMixin.sol";
 import {IStateReceiver} from "../bor/IStateReceiver.sol";
 
 contract ChildChainManager is

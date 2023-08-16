@@ -29,7 +29,7 @@ module.exports = async function(deployer, network, accounts) {
 
     contractAddresses.child = {
       ChildChainManager: ChildChainManager.address,
-      ChildChainManagerProxy: childChainManagerProxy.address,
+      ChildChainManagerProxy: ChildChainManagerProxy.address,
       tokens: {
         META: MetaLockable.address
       }
