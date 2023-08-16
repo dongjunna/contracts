@@ -34,7 +34,7 @@ contract ChildChainManager is
      * @param rootToken address of token on root chain
      * @param childToken address of token on child chain
      */
-    function mapToken(address rootToken, address childToken) external onlyOwner {
+    function mapToken(address rootToken, address childToken, bool isErc721) external onlyOwner {
         _mapToken(rootToken, childToken);
     }
 
