@@ -5,18 +5,18 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20Burnable.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import "./IMETA.sol";
-
 // import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 // import "openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 
 contract META is ERC20Pausable, ERC20Detailed, ERC20Mintable, ERC20Burnable, Ownable {
     address public rootChainManager;
+    // uint8 public decimals = 18;
+    uint256 value = 10**10 * (10**18);
 
-    constructor (string memory name, string memory symbol, uint8 decimals, uint256 totalSupply, address rootChainManager)
+    constructor (string memory name, string memory symbol, address rootChainManager)
     public
-    ERC20Detailed (name, symbol, decimals) {
-      _mint(msg.sender, totalSupply);
+    ERC20Detailed (name, symbol, 18) {
+      _mint(msg.sender, value);
       _transferOwnership(rootChainManager);
     }
 

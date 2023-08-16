@@ -5,6 +5,7 @@ const Registry = artifacts.require('Registry')
 const Governance = artifacts.require('Governance')
 const StateSender = artifacts.require('StateSender')
 const DepositManager = artifacts.require('DepositManager')
+const RootChainManager = artifacts.require('RootChainManager')
 
 module.exports = async function(deployer, network, accounts) {
   deployer.then(async() => {
@@ -17,41 +18,41 @@ module.exports = async function(deployer, network, accounts) {
     const registry = await Registry.at(contractAddresses.root.Registry)
     const governance = await Governance.at(contractAddresses.root.GovernanceProxy)
 
-    await governance.update(
-      registry.address,
-      registry.contract.methods.mapToken(
-        contractAddresses.root.tokens.MaticWeth,
-        contractAddresses.child.tokens.MaticWeth,
-        false /* isERC721 */
-      ).encodeABI()
-    )
+    // await governance.update(
+    //   registry.address,
+    //   registry.contract.methods.mapToken(
+    //     contractAddresses.root.tokens.MaticWeth,
+    //     contractAddresses.child.tokens.MaticWeth,
+    //     false /* isERC721 */
+    //   ).encodeABI()
+    // )
 
     await governance.update(
       registry.address,
       registry.contract.methods.mapToken(
-        contractAddresses.root.tokens.MaticToken,
-        contractAddresses.child.tokens.MaticToken,
+        contractAddresses.root.tokens.META,
+        contractAddresses.child.tokens.META,
         false /* isERC721 */
       ).encodeABI()
     )
 
-    await governance.update(
-      registry.address,
-      registry.contract.methods.mapToken(
-        contractAddresses.root.tokens.TestToken,
-        contractAddresses.child.tokens.TestToken,
-        false /* isERC721 */
-      ).encodeABI()
-    )
-
-    await governance.update(
-      registry.address,
-      registry.contract.methods.mapToken(
-        contractAddresses.root.tokens.RootERC721,
-        contractAddresses.child.tokens.RootERC721,
-        true /* isERC721 */
-      ).encodeABI()
-    )
+    // await governance.update(
+    //   registry.address,
+    //   registry.contract.methods.mapToken(
+    //     contractAddresses.root.tokens.TestToken,
+    //     contractAddresses.child.tokens.TestToken,
+    //     false /* isERC721 */
+    //   ).encodeABI()
+    // )
+    //
+    // await governance.update(
+    //   registry.address,
+    //   registry.contract.methods.mapToken(
+    //     contractAddresses.root.tokens.RootERC721,
+    //     contractAddresses.child.tokens.RootERC721,
+    //     true /* isERC721 */
+    //   ).encodeABI()
+    // )
 
     await governance.update(
       registry.address,
@@ -62,8 +63,18 @@ module.exports = async function(deployer, network, accounts) {
     )
 
     const stateSenderContract = await StateSender.at(contractAddresses.root.StateSender)
-    await stateSenderContract.register(contractAddresses.root.DepositManagerProxy, contractAddresses.child.ChildChain)
-    let depositManager = await DepositManager.at(contractAddresses.root.DepositManagerProxy)
-    await depositManager.updateChildChainAndStateSender()
+    await stateSenderContract.register(contractAddresses.root.RootChainManagerProxy, contractAddresses.child.ChildChainManager)
+
+    const RootChainManagerInstance = await RootChainManager.at(contractAddresses.root.RootChainManagerProxy)
+
+    console.log('Setting StateSender')
+    await RootChainManagerInstance.setStateSender(contractAddresses.root.StateSender)
+
+    console.log('Setting ChildChainManager')
+    await RootChainManagerInstance.setChildChainManagerAddress(contractAddresses.child.ChildChainManagerProxy)
+
+    console.log('Setting CheckpointManager')
+    await RootChainManagerInstance.setCheckpointManager(contractAddresses.root.RootChainProxy)
+
   })
 }

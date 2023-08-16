@@ -32,7 +32,7 @@ interface IRootChainManager {
         bytes32 tokenType
     ) external;
 
-    function depositEtherFor(address user) external payable;
+    // function depositEtherFor(address user) external payable;
 
     function depositFor(
         address user,

@@ -199,9 +199,6 @@ module.exports = async function(deployer, network, accounts) {
     await deployer.deploy(StakingInfo, Registry.address)
     await deployer.deploy(StakingNFT, 'Matic Validator', 'MV')
 
-    // pos-portal: L1 Meta Token deploy
-    const metaToken = await deployer.deploy(META, 'META', 'META')
-
     await deployer.deploy(RootChain)
     await deployer.deploy(RootChainProxy, RootChain.address, Registry.address, process.env.HEIMDALL_ID)
     await deployer.deploy(StateSender)
@@ -211,9 +208,12 @@ module.exports = async function(deployer, network, accounts) {
     // pos-portal: rootChainManager deploy
     {
       const rootChainManager = await deployer.deploy(RootChainManager)
-      const rootChainManagerProxy = await deployer.deploy(RootChainManagerProxy, RootChainManager.address, ZeroAddress)
+      const rootChainManagerProxy = await deployer.deploy(RootChainManagerProxy, ZeroAddress)
       await rootChainManagerProxy.updateAndCall(RootChainManager.address, rootChainManager.contract.methods.initialize(accounts[0]).encodeABI())
     }
+
+    // pos-portal: L1 Meta Token deploy
+    const metaToken = await deployer.deploy(META, 'META', 'META', RootChainManager.address)
 
     await deployer.deploy(DepositManager)
     await deployer.deploy(DepositManagerProxy, DepositManager.address, Registry.address, RootChainProxy.address, GovernanceProxy.address)
