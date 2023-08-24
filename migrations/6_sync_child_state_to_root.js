@@ -75,6 +75,5 @@ module.exports = async function(deployer, network, accounts) {
 
     console.log('Setting CheckpointManager')
     await RootChainManagerInstance.setCheckpointManager(contractAddresses.root.RootChainProxy)
-
   })
 }

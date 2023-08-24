@@ -101,24 +101,28 @@ contract MetaLockable is Ownable {
 
         // currentSupply = currentSupply.sub(amount);
 
-      // check for amount
+        // check for amount
         require(
             amount > 0 && msg.value == amount,
             "Insufficient amount"
         );
 
-        //TODO 돈 락해
-        _lock(user, amount);
-
         //TODO 돈 더해
         _balance[user] = _balance[user] + amount;
+
+        //TODO 돈 락해
+        _lock(user, amount);
 
         // withdraw event
         emit Withdraw(token, user, amount, input, balanceOf(user));
     }
 
     function balanceOf(address account) public view returns (uint256) {
-        return account.balance;
+      return account.balance;
+    }
+
+    function lockedBalanceOf(address account) public view returns (uint256) {
+      return _balance[account];
     }
 
     function _lock(address payee, uint256 lockAmount) internal {
