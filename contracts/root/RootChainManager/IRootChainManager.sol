@@ -3,22 +3,13 @@ pragma solidity ^0.5.2;
 interface IRootChainManager {
     event TokenMapped(
         address indexed rootToken,
-        address indexed childToken,
-        bytes32 indexed tokenType
+        address indexed childToken
     );
-
-    event PredicateRegistered(
-        bytes32 indexed tokenType,
-        address indexed predicateAddress
-    );
-
-    function registerPredicate(bytes32 tokenType, address predicateAddress)
-        external;
 
     function mapToken(
         address rootToken,
-        address childToken,
-        bytes32 tokenType
+        address childToken
+        // bytes32 tokenType
     ) external;
 
     function cleanMapToken(
@@ -28,8 +19,8 @@ interface IRootChainManager {
 
     function remapToken(
         address rootToken,
-        address childToken,
-        bytes32 tokenType
+        address childToken
+        // bytes32 tokenType
     ) external;
 
     // function depositEtherFor(address user) external payable;

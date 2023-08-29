@@ -27,9 +27,9 @@ contract MetaLockable is Ownable {
     event Withdraw(
       address indexed token,
       address indexed from,
-      uint256 amount,
-      uint256 input1,
-      uint256 output1
+      uint256 amount
+//      uint256 input1,
+//      uint256 output1
     );
 
     uint256 public currentSupply = 0;
@@ -56,6 +56,10 @@ contract MetaLockable is Ownable {
         childChain = _childChain;
         _transferOwnership(_childChain);
         //TODO 스테이킹 수량만큼 바로 deposit 및 lock
+    }
+
+    function getToken() public view returns (address) {
+        return token;
     }
 
     //TODO L1->L2 deposit: amount unlock
@@ -114,7 +118,7 @@ contract MetaLockable is Ownable {
         _lock(user, amount);
 
         // withdraw event
-        emit Withdraw(token, user, amount, input, balanceOf(user));
+        emit Withdraw(token, user, amount);
     }
 
     function balanceOf(address account) public view returns (uint256) {

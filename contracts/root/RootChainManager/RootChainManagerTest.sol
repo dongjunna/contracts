@@ -6,9 +6,10 @@ import {ExitPayloadReader} from "../../common/lib/ExitPayloadReader.sol";
 import {MerklePatriciaProof} from "../../common/lib/MerklePatriciaProof.sol";
 import {Merkle} from "../../common/lib/Merkle.sol";
 import {ICheckpointManager} from "../ICheckpointManager.sol";
+import {META} from "../../common/tokens/META.sol";
 import "./RootChainManagerStorageTest.sol";
 
-contract RootChainManagerTest is RootChainManagerStorageTest {
+contract RootChainManagerTest is RootChainManagerStorageTest, RootChainStorage {
     using ExitPayloadReader for bytes;
     using ExitPayloadReader for ExitPayloadReader.ExitPayload;
     using ExitPayloadReader for ExitPayloadReader.Log;
@@ -25,8 +26,24 @@ contract RootChainManagerTest is RootChainManagerStorageTest {
       _rootChainStorage = RootChain(newCheckpointManager);
     }
 
-    /**
-     * @notice exit tokens by providing proof
+    function mapToken(address rootToken, address childToken) external onlyOwner {
+      // explicit check if token is already mapped to avoid accidental remaps
+      require(
+        rootToChildToken[rootToken] == address(0) &&
+        childToRootToken[childToken] == address(0),
+        "RootChainManager: ALREADY_MAPPED"
+      );
+      _mapToken(rootToken, childToken);
+    }
+
+  function _mapToken(address rootToken, address childToken) private {
+      rootToChildToken[rootToken] = childToken;
+      childToRootToken[childToken] = rootToken;
+    }
+
+
+  /**
+   * @notice exit tokens by providing proof
      * @dev This function verifies if the transaction actually happened on child chain
      * the transaction log is then sent to token predicate to handle it accordingly
      *
@@ -46,59 +63,69 @@ contract RootChainManagerTest is RootChainManagerStorageTest {
         ExitPayloadReader.ExitPayload memory payload = inputData.toExitPayload();
 
         bytes memory branchMaskBytes = payload.getBranchMaskAsBytes();
-
-        // checking if exit has already been processed
-        // unique exit is identified using hash of (blockNumber, branchMask, receiptLogIndex)
-        bytes32 exitHash = keccak256(
-            abi.encodePacked(
-                payload.getBlockNumber(),
-                // first 2 nibbles are dropped while generating nibble array
-                // this allows branch masks that are valid but bypass exitHash check (changing first 2 nibbles only)
-                // so converting to nibble array and then hashing it
-                // TODO 임시: MerklePatriciaProof._getNibbleArray(branchMaskBytes),
-                payload.getReceiptLogIndex()
-            )
-        );
-
+//
+//        // checking if exit has already been processed
+//        // unique exit is identified using hash of (blockNumber, branchMask, receiptLogIndex)
+//        bytes32 exitHash = keccak256(
+//            abi.encodePacked(
+//                payload.getBlockNumber(),
+//                // first 2 nibbles are dropped while generating nibble array
+//                // this allows branch masks that are valid but bypass exitHash check (changing first 2 nibbles only)
+//                // so converting to nibble array and then hashing it
+//                // TODO 임시: MerklePatriciaProof._getNibbleArray(branchMaskBytes),
+//                payload.getReceiptLogIndex()
+//            )
+//        );
+//
         ExitPayloadReader.Receipt memory receipt = payload.getReceipt();
         ExitPayloadReader.Log memory log = receipt.getLog();
 
-//        require(
-//            payload.getBranchMaskAsUint() &
-//            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000 ==
-//            0,
-//            "RootChainManager: INVALID_BRANCH_MASK"
-//        );
+        require(
+            payload.getBranchMaskAsUint() &
+            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000 ==
+            0,
+            "RootChainManager: INVALID_BRANCH_MASK"
+        );
 
-        // verify receipt inclusion
-//        require(
-//            MerklePatriciaProof.verify(
-//                receipt.toBytes(),
-//                branchMaskBytes,
-//                payload.getReceiptProof(),
-//                payload.getReceiptRoot()
-//            ),
-//            "RootChainManager: INVALID_PROOF"
-//        );
-//
-        // verify checkpoint inclusion
-        _checkBlockMembershipInCheckpoint(
-            payload.getBlockNumber(),
-            payload.getBlockTime(),
-            payload.getTxRoot(),
-            payload.getReceiptRoot(),
-            payload.getHeaderNumber(),
-            payload.getBlockProof()
+        require(
+            MerklePatriciaProof.verify(
+                receipt.toBytes(),
+                branchMaskBytes,
+                payload.getReceiptProof(),
+                payload.getReceiptRoot()
+            ),
+            "RootChainManager: INVALID_PROOF"
         );
 //
-//        //TODO user decoding
-//        RLPReader.RLPItem[] memory logRLPList = log.toRlpBytes().toRlpItem().toList();
-//        RLPReader.RLPItem[] memory logTopicRLPList = logRLPList[1].toList();
+//        // verify checkpoint inclusion
+//        _checkBlockMembershipInCheckpoint(
+//            payload.getBlockNumber(),
+//            payload.getBlockTime(),
+//            payload.getTxRoot(),
+//            payload.getReceiptRoot(),
+//            payload.getHeaderNumber(),
+//            payload.getBlockProof()
+//        );
 //
-//        address withdrawal = address(logTopicRLPList[1].toUint());
-//
-//        //TODO depositFor amount decoding
-//        uint256 amount = logRLPList[2].toUint();
+
+        //TODO user decoding
+        RLPReader.RLPItem[] memory logRLPList = log.toRlpBytes().toRlpItem().toList();
+        RLPReader.RLPItem[] memory logTopicRLPList = logRLPList[1].toList();
+
+        address withdrawal = address(logTopicRLPList[2].toUint());
+
+        //TODO depositFor amount decoding
+        uint256 amount = logRLPList[2].toUint();
+
+        address rootToken = childToRootToken[log.getEmitter()];
+
+        //TODO 토큰 설정
+        META meta = META(rootToken);
+
+        meta.mint(address(this), amount);
+
+        //TODO 이 컨트랙트 -> 사용자 토큰 트랜스퍼
+        meta.transfer(withdrawal, amount);
     }
 
     function _checkBlockMembershipInCheckpoint(
@@ -122,23 +149,32 @@ contract RootChainManagerTest is RootChainManagerStorageTest {
           abi.encodePacked(blockNumber, blockTime, txRoot, receiptRoot)
         )
         .checkMembership(
-          blockNumber.sub(startBlock),
-          headerRoot,
-          blockProof
+          blockNumber.sub(startBlock), // 149 - 0
+          headerRoot, // 0x324...
+          blockProof // []
         ),
         "RootChainManager: INVALID_HEADER"
       );
     }
 
-  function getCheckpoint(uint256 headerNumber) external view returns (uint256){
-    (
-    bytes32 headerRoot,
-    uint256 startBlock,
-    uint256 end,
-    uint256 createdAt,
-    address proposer
-    ) = _rootChainStorage.headerBlocks(headerNumber);
+  function getCheckpoint(uint256 blockNumber, uint256 blockTime, bytes32 txRoot, bytes32 receiptRoot, bytes calldata blockProof) external view returns (bytes32){
+//    (
+//    bytes32 headerRoot,
+//    uint256 startBlock,
+//    ,
+//    ,
+//
+//    )= _rootChainStorage.headerBlocks(headerNumber);
 
-    return startBlock;
+    _checkBlockMembershipInCheckpoint(
+        blockNumber,
+        blockTime,
+        txRoot,
+        receiptRoot,
+        10000,
+        blockProof
+    );
+
+    return keccak256(abi.encodePacked(blockNumber, blockTime, txRoot, receiptRoot));
   }
 }

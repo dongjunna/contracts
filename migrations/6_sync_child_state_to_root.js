@@ -63,7 +63,7 @@ module.exports = async function(deployer, network, accounts) {
     )
 
     const stateSenderContract = await StateSender.at(contractAddresses.root.StateSender)
-    await stateSenderContract.register(contractAddresses.root.RootChainManagerProxy, contractAddresses.child.ChildChainManager)
+    await stateSenderContract.register(contractAddresses.root.RootChainManagerProxy, contractAddresses.child.ChildChainManagerProxy)
 
     const RootChainManagerInstance = await RootChainManager.at(contractAddresses.root.RootChainManagerProxy)
 
@@ -75,5 +75,10 @@ module.exports = async function(deployer, network, accounts) {
 
     console.log('Setting CheckpointManager')
     await RootChainManagerInstance.setCheckpointManager(contractAddresses.root.RootChainProxy)
+
+    console.log('Setting Child Token')
+    console.log('Root Meta Token: ', contractAddresses.root.tokens.META)
+    console.log('Child Meta Token: ', contractAddresses.child.tokens.META)
+    await RootChainManagerInstance.mapToken(contractAddresses.root.tokens.META, contractAddresses.child.tokens.META)
   })
 }

@@ -14,8 +14,11 @@ module.exports = async function(deployer, network, accounts) {
 
     const contractAddresses = utils.getContractAddresses()
 
-    const metaLockable = await deployer.deploy(MetaLockable)
-    await metaLockable.contract.methods.initialize(ChildChainManager.address, contractAddresses.root.tokens.META)
+    await deployer.deploy(MetaLockable)
+    const metaLockable = await MetaLockable.at(MetaLockable.address)
+    console.log('* ChildChainManager.address: ', ChildChainManager.address)
+    console.log('* contractAddresses.root.tokens.META: ', contractAddresses.root.tokens.META)
+    await metaLockable.initialize(ChildChainManager.address, contractAddresses.root.tokens.META)
 
     // TODO contract address 수정 0x0000000000000000000000000000000000001010 -> a
     // const meta = await MetaLockable.at('0x0000000000000000000000000000000000001010')
@@ -34,6 +37,7 @@ module.exports = async function(deployer, network, accounts) {
         META: MetaLockable.address
       }
     }
+    console.log(contractAddresses.child)
     utils.writeContractAddresses(contractAddresses)
   })
 }

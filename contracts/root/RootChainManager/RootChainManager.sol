@@ -138,30 +138,18 @@ contract RootChainManager is
     }
 
     /**
-     * @notice Register a token predicate address against its type, callable only by ADMIN
-     * @dev A predicate is a contract responsible to process the token specific logic while locking or exiting tokens
-     * @param tokenType bytes32 unique identifier for the token type
-     * @param predicateAddress address of token predicate address
-     */
-    function registerPredicate(bytes32 tokenType, address predicateAddress) external onlyOwner {
-        typeToPredicate[tokenType] = predicateAddress;
-        emit PredicateRegistered(tokenType, predicateAddress);
-    }
-
-    /**
      * @notice Map a token to enable its movement via the PoS Portal, callable only by mappers
      * @param rootToken address of token on root chain
      * @param childToken address of token on child chain
-     * @param tokenType bytes32 unique identifier for the token type
      */
-    function mapToken(address rootToken, address childToken, bytes32 tokenType) external onlyOwner {
+    function mapToken(address rootToken, address childToken) external onlyOwner {
         // explicit check if token is already mapped to avoid accidental remaps
         require(
             rootToChildToken[rootToken] == address(0) &&
             childToRootToken[childToken] == address(0),
             "RootChainManager: ALREADY_MAPPED"
         );
-        _mapToken(rootToken, childToken, tokenType);
+        _mapToken(rootToken, childToken);
     }
 
     /**
@@ -172,9 +160,8 @@ contract RootChainManager is
     function cleanMapToken(address rootToken, address childToken) external onlyOwner {
         rootToChildToken[rootToken] = address(0);
         childToRootToken[childToken] = address(0);
-        tokenToType[rootToken] = bytes32(0);
 
-        emit TokenMapped(rootToken, childToken, tokenToType[rootToken]);
+        emit TokenMapped(rootToken, childToken);
     }
 
     /**
@@ -182,38 +169,30 @@ contract RootChainManager is
      * Callable only by ADMIN
      * @param rootToken address of token on root chain
      * @param childToken address of token on child chain
-     * @param tokenType bytes32 unique identifier for the token type
      */
-    function remapToken(address rootToken, address childToken, bytes32 tokenType) external onlyOwner {
+    function remapToken(address rootToken, address childToken) external onlyOwner {
         // cleanup old mapping
         address oldChildToken = rootToChildToken[rootToken];
         address oldRootToken = childToRootToken[childToken];
 
         if (rootToChildToken[oldRootToken] != address(0)) {
             rootToChildToken[oldRootToken] = address(0);
-            tokenToType[oldRootToken] = bytes32(0);
         }
 
         if (childToRootToken[oldChildToken] != address(0)) {
             childToRootToken[oldChildToken] = address(0);
         }
 
-        _mapToken(rootToken, childToken, tokenType);
+        _mapToken(rootToken, childToken);
     }
 
-    function _mapToken(address rootToken, address childToken, bytes32 tokenType) private {
-        require(
-            typeToPredicate[tokenType] != address(0x0),
-            "RootChainManager: TOKEN_TYPE_NOT_SUPPORTED"
-        );
-
+    function _mapToken(address rootToken, address childToken) private {
         rootToChildToken[rootToken] = childToken;
         childToRootToken[childToken] = rootToken;
-        tokenToType[rootToken] = tokenType;
 
-        emit TokenMapped(rootToken, childToken, tokenType);
+        emit TokenMapped(rootToken, childToken);
 
-        bytes memory syncData = abi.encode(rootToken, childToken, tokenType);
+        bytes memory syncData = abi.encode(rootToken, childToken);
         _stateSender.syncState(
             childChainManagerAddress,
             abi.encode(MAP_TOKEN, syncData)
@@ -262,17 +241,11 @@ contract RootChainManager is
         address rootToken,
         bytes memory depositData
     ) private {
-        bytes32 tokenType = tokenToType[rootToken];
         require(
-            rootToChildToken[rootToken] != address(0x0) &&
-               tokenType != 0,
+            rootToChildToken[rootToken] != address(0x0),
             "RootChainManager: TOKEN_NOT_MAPPED"
         );
-//        address predicateAddress = typeToPredicate[tokenType];
-//        require(
-//            predicateAddress != address(0),
-//            "RootChainManager: INVALID_TOKEN_TYPE"
-//        );
+
         require(
             user != address(0),
             "RootChainManager: INVALID_USER"
@@ -287,7 +260,7 @@ contract RootChainManager is
         //TODO 사용자 -> 이 컨트랙트 토큰 트랜스퍼
         meta.transferFrom(user, address(this), amount);
 
-        meta.burn(amount);
+        meta.burn(address(this), amount);
 
         //TODO burn으로
 //        ITokenPredicate(predicateAddress).lockTokens(
@@ -327,22 +300,24 @@ contract RootChainManager is
         bytes memory branchMaskBytes = payload.getBranchMaskAsBytes();
         // checking if exit has already been processed
         // unique exit is identified using hash of (blockNumber, branchMask, receiptLogIndex)
-        bytes32 exitHash = keccak256(
-            abi.encodePacked(
-                payload.getBlockNumber(),
-                // first 2 nibbles are dropped while generating nibble array
-                // this allows branch masks that are valid but bypass exitHash check (changing first 2 nibbles only)
-                // so converting to nibble array and then hashing it
-                // TODO 임시: MerklePatriciaProof._getNibbleArray(branchMaskBytes),
-                payload.getReceiptLogIndex()
-            )
-        );
 
-        require(
-            processedExits[exitHash] == false,
-            "RootChainManager: EXIT_ALREADY_PROCESSED"
-        );
-        processedExits[exitHash] = true;
+        //TODO 처리 체크 나중에 해제
+//        bytes32 exitHash = keccak256(
+//            abi.encodePacked(
+//                payload.getBlockNumber(),
+//                // first 2 nibbles are dropped while generating nibble array
+//                // this allows branch masks that are valid but bypass exitHash check (changing first 2 nibbles only)
+//                // so converting to nibble array and then hashing it
+//                // MerklePatriciaProof._getNibbleArray(branchMaskBytes),
+//                payload.getReceiptLogIndex()
+//            )
+//        );
+//
+//        require(
+//            processedExits[exitHash] == false,
+//            "RootChainManager: EXIT_ALREADY_PROCESSED"
+//        );
+//        processedExits[exitHash] = true;
 
         ExitPayloadReader.Receipt memory receipt = payload.getReceipt();
         ExitPayloadReader.Log memory log = receipt.getLog();
@@ -354,9 +329,6 @@ contract RootChainManager is
             "RootChainManager: TOKEN_NOT_MAPPED"
         );
 
-        address predicateAddress = typeToPredicate[
-            tokenToType[rootToken]
-        ];
 
         // branch mask can be maximum 32 bits
         require(
