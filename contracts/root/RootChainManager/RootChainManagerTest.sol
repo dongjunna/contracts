@@ -96,17 +96,17 @@ contract RootChainManagerTest is RootChainManagerStorageTest, RootChainStorage {
             ),
             "RootChainManager: INVALID_PROOF"
         );
-//
-//        // verify checkpoint inclusion
-//        _checkBlockMembershipInCheckpoint(
-//            payload.getBlockNumber(),
-//            payload.getBlockTime(),
-//            payload.getTxRoot(),
-//            payload.getReceiptRoot(),
-//            payload.getHeaderNumber(),
-//            payload.getBlockProof()
-//        );
-//
+
+        // verify checkpoint inclusion
+        _checkBlockMembershipInCheckpoint(
+            payload.getBlockNumber(),
+            payload.getBlockTime(),
+            payload.getTxRoot(),
+            payload.getReceiptRoot(),
+            payload.getHeaderNumber(),
+            payload.getBlockProof()
+        );
+
 
         //TODO user decoding
         RLPReader.RLPItem[] memory logRLPList = log.toRlpBytes().toRlpItem().toList();
@@ -157,24 +157,17 @@ contract RootChainManagerTest is RootChainManagerStorageTest, RootChainStorage {
       );
     }
 
-  function getCheckpoint(uint256 blockNumber, uint256 blockTime, bytes32 txRoot, bytes32 receiptRoot, bytes calldata blockProof) external view returns (bytes32){
-//    (
-//    bytes32 headerRoot,
-//    uint256 startBlock,
-//    ,
-//    ,
-//
-//    )= _rootChainStorage.headerBlocks(headerNumber);
+  function mtVerify(bytes calldata value, bytes calldata encodedPath, bytes calldata rlpParentNodes, bytes32 root) external{
 
-    _checkBlockMembershipInCheckpoint(
-        blockNumber,
-        blockTime,
-        txRoot,
-        receiptRoot,
-        10000,
-        blockProof
+    require(
+      MerklePatriciaProof.verify(
+        receipt.toBytes(),
+        branchMaskBytes,
+        payload.getReceiptProof(),
+        payload.getReceiptRoot()
+      ),
+      "RootChainManager: INVALID_PROOF"
     );
-
-    return keccak256(abi.encodePacked(blockNumber, blockTime, txRoot, receiptRoot));
   }
+
 }
