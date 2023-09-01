@@ -10,3 +10,7 @@ export function writeContractAddresses(contractAddresses) {
     JSON.stringify(contractAddresses, null, 2) // Indent 2 spaces
   )
 }
+
+export function getBlockDataList() {
+  return JSON.parse(fs.readFileSync(`${process.cwd()}/contractAddresses.json`).toString())
+}

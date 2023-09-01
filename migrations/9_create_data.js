@@ -1,4 +1,4 @@
-const RootChainManagerTest = artifacts.require('RootChainManagerTest')
+const RootChainManager = artifacts.require('RootChainManager')
 const META = artifacts.require('META')
 const utils = require('./utils')
 // const Buffer = require('safe-buffer').Buffer
@@ -12,26 +12,9 @@ module.exports = async function(deployer, network, accounts) {
   const contractAddresses = utils.getContractAddresses()
 
   console.log('deploying RootChainManagerTest contracts...')
-  await deployer.deploy(RootChainManagerTest)
-  const RootChainManagerTestInstance = await RootChainManagerTest.at(RootChainManagerTest.address)
+  const RootChainManagerInstance = await RootChainManager.at(contractAddresses.root.RootChainManager)
 
-  console.log('set checkpoint manager... ', contractAddresses.root.RootChainProxy)
-  await RootChainManagerTestInstance.setCheckpointManager(contractAddresses.root.RootChainProxy)
-
-  await deployer.deploy(META, 'META', 'META', RootChainManagerTest.address)
-
-  console.log('Setting Child Token')
-  await RootChainManagerTestInstance.mapToken(META.address, contractAddresses.child.tokens.META)
-
-  const rootChainManagerTestAddresses = {
-    RootChainManagerTest: RootChainManagerTest.address,
-    META: META.address
-  }
-
-  const Meta = await META.at(META.address)
-
-  console.log('* rootChainManagerTestAddresses:', rootChainManagerTestAddresses)
-
+  const Meta = await META.at(contractAddresses.root.tokens.META)
 
   const block = await getBlockData()
   const txReceipt = await getReceiptData()
@@ -66,7 +49,7 @@ module.exports = async function(deployer, network, accounts) {
     ])
   )
   console.log('beforeBalance: ', await Meta.balanceOf("0xa121d7b3c4174414ab69741a9a27dd809de91407"))
-  await RootChainManagerTestInstance.exit(encodeData).then(console.log)
+  await RootChainManagerInstance.exit(encodeData).then(console.log)
   console.log('afterBalance: ', await Meta.balanceOf("0xa121d7b3c4174414ab69741a9a27dd809de91407"))
 }
 

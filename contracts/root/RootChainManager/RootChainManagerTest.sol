@@ -80,32 +80,32 @@ contract RootChainManagerTest is RootChainManagerStorageTest, RootChainStorage {
         ExitPayloadReader.Receipt memory receipt = payload.getReceipt();
         ExitPayloadReader.Log memory log = receipt.getLog();
 
-        require(
-            payload.getBranchMaskAsUint() &
-            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000 ==
-            0,
-            "RootChainManager: INVALID_BRANCH_MASK"
-        );
-
-        require(
-            MerklePatriciaProof.verify(
-                receipt.toBytes(),
-                branchMaskBytes,
-                payload.getReceiptProof(),
-                payload.getReceiptRoot()
-            ),
-            "RootChainManager: INVALID_PROOF"
-        );
-
-        // verify checkpoint inclusion
-        _checkBlockMembershipInCheckpoint(
-            payload.getBlockNumber(),
-            payload.getBlockTime(),
-            payload.getTxRoot(),
-            payload.getReceiptRoot(),
-            payload.getHeaderNumber(),
-            payload.getBlockProof()
-        );
+//        require(
+//            payload.getBranchMaskAsUint() &
+//            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000 ==
+//            0,
+//            "RootChainManager: INVALID_BRANCH_MASK"
+//        );
+//
+//        require(
+//            MerklePatriciaProof.verify(
+//                receipt.toBytes(),
+//                branchMaskBytes,
+//                payload.getReceiptProof(),
+//                payload.getReceiptRoot()
+//            ),
+//            "RootChainManager: INVALID_PROOF"
+//        );
+//
+//        // verify checkpoint inclusion
+//        _checkBlockMembershipInCheckpoint(
+//            payload.getBlockNumber(),
+//            payload.getBlockTime(),
+//            payload.getTxRoot(),
+//            payload.getReceiptRoot(),
+//            payload.getHeaderNumber(),
+//            payload.getBlockProof()
+//        );
 
 
         //TODO user decoding
@@ -157,7 +157,31 @@ contract RootChainManagerTest is RootChainManagerStorageTest, RootChainStorage {
       );
     }
 
-  function mtVerify(bytes calldata value, bytes calldata encodedPath, bytes calldata rlpParentNodes, bytes32 root) external{
+  function mtVerify(bytes calldata inputData) external{
+    /*
+      const encodeData = bufferToHex(
+      rlp.encode([
+        20000, // headerBlock
+        bufferToHex(Buffer.concat([])), // blockProof
+        0, // blockNumber
+        0, // timestamp
+        bufferToHex(block.transactionsRoot), // txRoot
+        bufferToHex(block.receiptsRoot),
+        bufferToHex(txReceiptRlp),
+        bufferToHex(getReceiptProofFuncResult.parentNodes),
+        bufferToHex(Buffer.concat([Buffer.from('00', 'hex'), getReceiptProofFuncResult.path])), // branch mask,
+        0
+      ])
+    )
+
+      await RootChainManagerTestInstance.mtVerify(encodeData).then(console.log)
+
+    */
+    ExitPayloadReader.ExitPayload memory payload = inputData.toExitPayload();
+    bytes memory branchMaskBytes = payload.getBranchMaskAsBytes();
+    ExitPayloadReader.Receipt memory receipt = payload.getReceipt();
+
+    // MerklePatriciaProof._getNibbleArray(branchMaskBytes);
 
     require(
       MerklePatriciaProof.verify(

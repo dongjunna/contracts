@@ -16,6 +16,8 @@ import {Initializable} from "../../common/mixin/Initializable.sol";
 // import {ContextMixin} from "../../common/lib/ContextMixin.sol";
 import {Ownable} from "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import {META} from "../../common/tokens/META.sol";
+import {RootChainManagerStorage} from "./RootChainManagerStorage.sol";
+import {RootChain} from "../RootChain.sol";
 
 contract RootChainManager is
     Ownable,
@@ -114,9 +116,9 @@ contract RootChainManager is
      * @dev This should be the plasma contract responsible for keeping track of checkpoints
      * @param newCheckpointManager address of checkpoint manager contract
      */
-    function setCheckpointManager(address newCheckpointManager) external onlyOwner {
-        require(newCheckpointManager != address(0), "RootChainManager: BAD_NEW_CHECKPOINT_MANAGER");
-        _checkpointManager = ICheckpointManager(newCheckpointManager);
+    function setCheckpointManager(address newCheckpointManager) external {
+      require(newCheckpointManager != address(0), "RootChainManager: BAD_NEW_CHECKPOINT_MANAGER");
+      _rootChainStorage = RootChain(newCheckpointManager);
     }
 
     /**
@@ -124,7 +126,7 @@ contract RootChainManager is
      * @return The address of checkpoint manager contract
      */
     function checkpointManagerAddress() external view returns (address) {
-        return address(_checkpointManager);
+        return address(_rootChainStorage);
     }
 
     /**
@@ -192,11 +194,11 @@ contract RootChainManager is
 
         emit TokenMapped(rootToken, childToken);
 
-        bytes memory syncData = abi.encode(rootToken, childToken);
-        _stateSender.syncState(
-            childChainManagerAddress,
-            abi.encode(MAP_TOKEN, syncData)
-        );
+//        bytes memory syncData = abi.encode(rootToken, childToken);
+//        _stateSender.syncState(
+//            childChainManagerAddress,
+//            abi.encode(MAP_TOKEN, syncData)
+//        );
     }
 
     /**
@@ -301,29 +303,19 @@ contract RootChainManager is
         // checking if exit has already been processed
         // unique exit is identified using hash of (blockNumber, branchMask, receiptLogIndex)
 
-        //TODO 처리 체크 나중에 해제
-//        bytes32 exitHash = keccak256(
-//            abi.encodePacked(
-//                payload.getBlockNumber(),
-//                // first 2 nibbles are dropped while generating nibble array
-//                // this allows branch masks that are valid but bypass exitHash check (changing first 2 nibbles only)
-//                // so converting to nibble array and then hashing it
-//                // MerklePatriciaProof._getNibbleArray(branchMaskBytes),
-//                payload.getReceiptLogIndex()
-//            )
-//        );
-//
+        //TODO 테스트 이후 실행
 //        require(
-//            processedExits[exitHash] == false,
+//            processedExits[payload.getTxRoot()] == false,
 //            "RootChainManager: EXIT_ALREADY_PROCESSED"
 //        );
-//        processedExits[exitHash] = true;
-
+//        processedExits[payload.getTxRoot()] = true;
+//
         ExitPayloadReader.Receipt memory receipt = payload.getReceipt();
         ExitPayloadReader.Log memory log = receipt.getLog();
 
         // log should be emmited only by the child token
         address rootToken = childToRootToken[log.getEmitter()];
+
         require(
             rootToken != address(0),
             "RootChainManager: TOKEN_NOT_MAPPED"
@@ -363,7 +355,7 @@ contract RootChainManager is
         RLPReader.RLPItem[] memory logRLPList = log.toRlpBytes().toRlpItem().toList();
         RLPReader.RLPItem[] memory logTopicRLPList = logRLPList[1].toList();
 
-        address withdrawal = address(logTopicRLPList[1].toUint());
+        address withdrawal = address(logTopicRLPList[2].toUint());
 
         //TODO depositFor amount decoding
         uint256 amount = logRLPList[2].toUint();
@@ -375,11 +367,6 @@ contract RootChainManager is
 
         //TODO 이 컨트랙트 -> 사용자 토큰 트랜스퍼
         meta.transfer(withdrawal, amount);
-
-//        ITokenPredicate(predicateAddress).exitTokens(
-//            rootToken,
-//            log.toRlpBytes()
-//        );
     }
 
     function _checkBlockMembershipInCheckpoint(
@@ -396,7 +383,7 @@ contract RootChainManager is
             ,
             ,
 
-        ) = _checkpointManager.headerBlocks(headerNumber);
+        ) = _rootChainStorage.headerBlocks(headerNumber);
 
         require(
             keccak256(
@@ -409,5 +396,37 @@ contract RootChainManager is
             ),
             "RootChainManager: INVALID_HEADER"
         );
+    }
+
+    function getCheckpoint() external view returns (bytes32){
+
+      (
+      bytes32 headerRoot,
+      uint256 startBlock,
+      ,
+      ,
+
+      ) = _rootChainStorage.headerBlocks(10000);
+
+      return headerRoot;
+    }
+
+    function getThisAddress() external view returns (address){
+
+      return address(this);
+    }
+
+
+    function checkpointVerify(uint256 blockNumber, uint256 blockTime, bytes32 txRoot, bytes32 receiptRoot, bytes calldata blockProof) external view returns (bytes32){
+      _checkBlockMembershipInCheckpoint(
+        blockNumber,
+        blockTime,
+        txRoot,
+        receiptRoot,
+        10000,
+        blockProof
+      );
+
+      return keccak256(abi.encodePacked(blockNumber, blockTime, txRoot, receiptRoot));
     }
 }

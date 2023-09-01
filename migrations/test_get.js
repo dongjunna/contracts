@@ -25,27 +25,60 @@ module.exports = async function(deployer, network, accounts) {
   const value = await getReceiptBytes(txReceipt)
   console.log('* value: ', value)
 
-  const receiptProof = getReceiptProof(txReceipt, block, null, [txReceipt])
+  const receiptList = []
+
+  receiptList.push(txReceipt)
+  // receiptList.push(await getReceiptData2())
+  // receiptList.push(await getReceiptData3())
+
+  console.log('receiptList: ', receiptList)
+
+  const receiptProof = await getReceiptProof(txReceipt, block, receiptList)
+
+  const jsVerified = await verifyTxProof(receiptProof)
+  if(!jsVerified) {
+    console.log('*** Proof verification in js failed for receipt: ', txReceipt.transactionIndex)
+  }
+
   const encodedPath = receiptProof.path
   console.log('* encodedPath: ', encodedPath)
 
-  console.log('* value: ', value)
+  const rlpParentNodes = receiptProof.parentNodes
+  console.log('* rlpParentNodes: ', rlpParentNodes)
 
-  console.log('* value: ', value)
+  const root = block.receiptsRoot
+  console.log('* root: ', root)
 
+  const encodeData = bufferToHex(
+    rlp.encode([
+      20000, // headerBlock
+      bufferToHex(Buffer.concat([])), // blockProof
+      0, // blockNumber
+      0, // timestamp
+      bufferToHex(block.transactionsRoot), // txRoot
+      bufferToHex(block.receiptsRoot),
+      bufferToHex(value),
+      bufferToHex(receiptProof.parentNodes),
+      bufferToHex(receiptProof.path), // branch mask,
+      0
+    ])
+  )
+
+  await RootChainManagerTestInstance.mtVerify(encodeData).then(console.log)
 
   // bytes calldata value, bytes calldata encodedPath, bytes calldata rlpParentNodes, bytes32 root
-  RootChainManagerTestInstance.mtVerify()
+  // RootChainManagerTestInstance.mtVerify(value, encodedPath, rlpParentNodes, root)
 }
 
 
-async function getReceiptProof(receipt, block, web3, receipts) {
+async function getReceiptProof(receipt, block, receipts) {
   const receiptsTrie = new Trie()
 
   for (let i = 0; i < receipts.length; i++) {
     const siblingReceipt = receipts[i]
     const path = rlp.encode(siblingReceipt.transactionIndex)
-    const rawReceipt = getReceiptBytes(siblingReceipt)
+    console.log('path', i, ': ', path, ',', siblingReceipt.transactionIndex)
+    const rawReceipt = await getReceiptBytes(siblingReceipt)
     await new Promise((resolve, reject) => {
       receiptsTrie.put(path, rawReceipt, err => {
         if (err) {
@@ -87,9 +120,9 @@ async function getReceiptBytes(receipt) {
   console.log('* [getReceiptBytes] receipt.cumulativeGasUsed: ', receipt.cumulativeGasUsed)
   console.log('* [getReceiptBytes] receipt.logsBloom: ', receipt.logsBloom)
   console.log('* [getReceiptBytes] receipt.logs: ', receipt.logs)
-  return rlp.encode([
+  let encodedData = rlp.encode([
     toBuffer('0x1'),
-    toBuffer(receipt.cumulativeGasUsed),
+    toBuffer(web3.utils.toHex(receipt.cumulativeGasUsed)),
     toBuffer(receipt.logsBloom),
 
     // encoded log array
@@ -102,6 +135,89 @@ async function getReceiptBytes(receipt) {
       ]
     })
   ])
+
+  if (await isTypedReceipt(receipt)) {
+    encodedData = Buffer.concat([
+      ethUtils.toBuffer(receipt.type),
+      encodedData,
+    ]);
+  }
+
+  return encodedData
+}
+
+async function isTypedReceipt(receipt) {
+  const hexType = web3.utils.toHex(receipt.type);
+  return receipt.status != null && hexType !== "0x0" && hexType !== "0x";
+}
+
+
+async function verifyTxProof(proof) {
+  const path = proof.path.toString('hex')
+  const value = proof.value
+  const parentNodes = proof.parentNodes
+  const txRoot = proof.root
+  try {
+    var currentNode
+    var len = parentNodes.length
+    var nodeKey = txRoot
+    var pathPtr = 0
+    for (var i = 0; i < len; i++) {
+      currentNode = parentNodes[i]
+      const encodedNode = Buffer.from(
+        keccak256(rlp.encode(currentNode)),
+        'hex'
+      )
+      if (!nodeKey.equals(encodedNode)) {
+        return false
+      }
+      if (pathPtr > path.length) {
+        return false
+      }
+      switch (currentNode.length) {
+        case 17: // branch node
+          if (pathPtr === path.length) {
+            if (currentNode[16] === rlp.encode(value)) {
+              return true
+            } else {
+              return false
+            }
+          }
+          nodeKey = currentNode[parseInt(path[pathPtr], 16)] // must === sha3(rlp.encode(currentNode[path[pathptr]]))
+          pathPtr += 1
+          break
+        case 2:
+          // eslint-disable-next-line
+          const traversed = nibblesToTraverse(
+            currentNode[0].toString('hex'),
+            path,
+            pathPtr
+          )
+          if ((traversed + pathPtr) === path.length) {
+            // leaf node
+            if (currentNode[1].equals(rlp.encode(value))) {
+              return true
+            } else {
+              return false
+            }
+          }
+          // extension node
+          if (traversed === 0) {
+            return false
+          }
+          pathPtr += traversed
+          nodeKey = currentNode[1]
+          break
+        default:
+          console.log('all nodes must be length 17 or 2')
+          return false
+      }
+    }
+  } catch (e) {
+    console.log(e)
+    return false
+  }
+  return false
 }
 
 async function getReceiptData(){
@@ -129,6 +245,64 @@ async function getReceiptData(){
     to: "0x4f0ff11ebf566768a9269ff03e63e7e3197cebaf",
     transactionHash: "0x1973a28349c12456d9163be98d6b9605e559aec1b7b2e8da0fbc2e1e22851995",
     transactionIndex: 0,
+    type: "0x0"
+  }
+}
+
+async function getReceiptData2(){
+  return {
+    blockHash: "0xc5f5d92f92fabb067e65592480bf9a6adef79084aad32b2c0ec78b29582f8271",
+    blockNumber: 65,
+    contractAddress: null,
+    cumulativeGasUsed: 92878,
+    effectiveGasPrice: 110000000000,
+    from: "0xa121d7b3c4174414ab69741a9a27dd809de91407",
+    gasUsed: 92878,
+    logs: [{
+      address: "0x4f0ff11ebf566768a9269ff03e63e7e3197cebaf",
+      blockHash: "0xc5f5d92f92fabb067e65592480bf9a6adef79084aad32b2c0ec78b29582f8271",
+      blockNumber: 65,
+      data: "0x00000000000000000000000000000000000000000000003635c9adc5dea00000",
+      logIndex: 0,
+      removed: false,
+      topics: ["0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb", "0x00000000000000000000000010ed2e985311d97558658508fd0705ad841236bb", "0x000000000000000000000000a121d7b3c4174414ab69741a9a27dd809de91407"],
+      transactionHash: "0x1973a28349c12456d9163be98d6b9605e559aec1b7b2e8da0fbc2e1e22851996",
+      transactionIndex: 0
+    }],
+    logsBloom: "0x00400000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000020400000000000000000000000000000000000000000100000000000001000020000000000000004000000000000000000000000000000000000000000000000004000000008000000000000000000000000008000000000000000",
+    status: "0x1",
+    to: "0x4f0ff11ebf566768a9269ff03e63e7e3197cebaf",
+    transactionHash: "0x1973a28349c12456d9163be98d6b9605e559aec1b7b2e8da0fbc2e1e22851996",
+    transactionIndex: 1,
+    type: "0x0"
+  }
+}
+
+async function getReceiptData3(){
+  return {
+    blockHash: "0xc5f5d92f92fabb067e65592480bf9a6adef79084aad32b2c0ec78b29582f8271",
+    blockNumber: 65,
+    contractAddress: null,
+    cumulativeGasUsed: 92878,
+    effectiveGasPrice: 110000000000,
+    from: "0xa121d7b3c4174414ab69741a9a27dd809de91407",
+    gasUsed: 92878,
+    logs: [{
+      address: "0x4f0ff11ebf566768a9269ff03e63e7e3197cebaf",
+      blockHash: "0xc5f5d92f92fabb067e65592480bf9a6adef79084aad32b2c0ec78b29582f8271",
+      blockNumber: 65,
+      data: "0x00000000000000000000000000000000000000000000003635c9adc5dea00000",
+      logIndex: 0,
+      removed: false,
+      topics: ["0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb", "0x00000000000000000000000010ed2e985311d97558658508fd0705ad841236bb", "0x000000000000000000000000a121d7b3c4174414ab69741a9a27dd809de91407"],
+      transactionHash: "0x1973a28349c12456d9163be98d6b9605e559aec1b7b2e8da0fbc2e1e22851997",
+      transactionIndex: 0
+    }],
+    logsBloom: "0x00400000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000020400000000000000000000000000000000000000000100000000000001000020000000000000004000000000000000000000000000000000000000000000000004000000008000000000000000000000000008000000000000000",
+    status: "0x1",
+    to: "0x4f0ff11ebf566768a9269ff03e63e7e3197cebaf",
+    transactionHash: "0x1973a28349c12456d9163be98d6b9605e559aec1b7b2e8da0fbc2e1e22851997",
+    transactionIndex: 2,
     type: "0x0"
   }
 }

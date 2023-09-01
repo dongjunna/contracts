@@ -65,7 +65,7 @@ module.exports = async function(deployer, network, accounts) {
     const stateSenderContract = await StateSender.at(contractAddresses.root.StateSender)
     await stateSenderContract.register(contractAddresses.root.RootChainManagerProxy, contractAddresses.child.ChildChainManagerProxy)
 
-    const RootChainManagerInstance = await RootChainManager.at(contractAddresses.root.RootChainManagerProxy)
+    const RootChainManagerInstance = await RootChainManager.at(contractAddresses.root.RootChainManager)
 
     console.log('Setting StateSender')
     await RootChainManagerInstance.setStateSender(contractAddresses.root.StateSender)

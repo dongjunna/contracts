@@ -23,25 +23,6 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "tokenType",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "predicateAddress",
-        "type": "address"
-      }
-    ],
-    "name": "PredicateRegistered",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
         "internalType": "address",
         "name": "rootToken",
         "type": "address"
@@ -51,12 +32,6 @@
         "internalType": "address",
         "name": "childToken",
         "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "tokenType",
-        "type": "bytes32"
       }
     ],
     "name": "TokenMapped",
@@ -390,26 +365,6 @@
     "constant": false,
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "tokenType",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "predicateAddress",
-        "type": "address"
-      }
-    ],
-    "name": "registerPredicate",
-    "outputs": [],
-    "payable": false,
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "constant": false,
-    "inputs": [
-      {
         "internalType": "address",
         "name": "rootToken",
         "type": "address"
@@ -418,11 +373,6 @@
         "internalType": "address",
         "name": "childToken",
         "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "tokenType",
-        "type": "bytes32"
       }
     ],
     "name": "mapToken",
@@ -463,11 +413,6 @@
         "internalType": "address",
         "name": "childToken",
         "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "tokenType",
-        "type": "bytes32"
       }
     ],
     "name": "remapToken",
@@ -502,7 +447,7 @@
     "type": "function"
   },
   {
-    "constant": false,
+    "constant": true,
     "inputs": [
       {
         "internalType": "bytes",
@@ -511,9 +456,86 @@
       }
     ],
     "name": "exit",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "payable": false,
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "getCheckpoint",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "getThisAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "blockTime",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "txRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "receiptRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "blockProof",
+        "type": "bytes"
+      }
+    ],
+    "name": "checkpointVerify",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
     "type": "function"
   }
 ]

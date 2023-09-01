@@ -213,7 +213,8 @@ module.exports = async function(deployer, network, accounts) {
     }
 
     // pos-portal: L1 Meta Token deploy
-    const metaToken = await deployer.deploy(META, 'META', 'META', RootChainManager.address)
+    await deployer.deploy(META, 'META', 'META', RootChainManager.address)
+    console.log('* RootChainManager: ', RootChainManager.address)
 
     await deployer.deploy(DepositManager)
     await deployer.deploy(DepositManagerProxy, DepositManager.address, Registry.address, RootChainProxy.address, GovernanceProxy.address)
@@ -238,7 +239,7 @@ module.exports = async function(deployer, network, accounts) {
       stakeManager.contract.methods.initialize(
         Registry.address,
         RootChainProxy.address,
-        metaToken.address,
+        META.address,
         StakingNFT.address,
         StakingInfo.address,
         ValidatorShareFactory.address,
@@ -289,10 +290,18 @@ module.exports = async function(deployer, network, accounts) {
           TransferWithSigPredicate: TransferWithSigPredicate.address
         },
         tokens: {
-          META: metaToken.address,
+          META: META.address,
           MaticWeth: MaticWeth.address,
           TestToken: TestToken.address,
           RootERC721: RootERC721.address
+        },
+        heimdall: {
+          matic_token_address: META.address,
+          staking_manager_address: StakeManagerProxy.address,
+          slash_manager_address: SlashingManager.address,
+          root_chain_address: RootChainProxy.address,
+          staking_info_address: StakingInfo.address,
+          state_sender_address: StateSender.address,
         }
       }
     }
