@@ -18,8 +18,8 @@ import {Ownable} from "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import {META} from "../../common/tokens/META.sol";
 import {RootChainManagerStorage} from "./RootChainManagerStorage.sol";
 import {RootChain} from "../RootChain.sol";
-
 import {IStakeManager} from "../staking/stakeManager/IStakeManager.sol";
+import {Registry} from "../../common/Registry.sol";
 
 
 contract RootChainManager is
@@ -381,9 +381,8 @@ contract RootChainManager is
         bool _acceptDelegation,
         bytes memory _signerPubkey
     ) external {
-
-        //TODO Get registry address, Ownerble
-        IStakeManager stakeManager = IStakeManager(registryAddr);
+        //TODO Get registry address, Ownerble getStakeManagerAddress
+        IStakeManager stakeManager = IStakeManager(Registry(registryAddr).getStakeManagerAddress());
 
         ExitPayloadReader.ExitPayload memory payload = inputData.toExitPayload();
 
