@@ -455,7 +455,8 @@ contract StakeManager is
     ) public onlyWhenUnlocked {
         require(currentValidatorSetSize() < validatorThreshold, "no more slots");
         require(amount >= minDeposit, "not enough deposit");
-        _transferAndTopUp(user, msg.sender, heimdallFee, amount);
+        //_transferAndTopUp(user, msg.sender, heimdallFee, amount);
+        _transferForValidator(user,heimdallFee);
         _stakeFor(user, amount, acceptDelegation, signerPubkey);
     }
 
@@ -1179,6 +1180,7 @@ contract StakeManager is
         require(token.transferFrom(from, destination, amount), "transfer from failed");
     }
 
+
     function _transferAndTopUp(
         address user,
         address from,
@@ -1189,6 +1191,16 @@ contract StakeManager is
         _transferTokenFrom(from, address(this), fee.add(additionalAmount));
         totalHeimdallFee = totalHeimdallFee.add(fee);
         logger.logTopUpFee(user, fee);
+    }
+
+    // Added for validator check
+   function _transferForValidator(
+        address user,
+        uint256 fee
+    ) private {
+        require(fee >= minHeimdallFee, "fee too small");
+        totalHeimdallFee = totalHeimdallFee.add(fee);
+        //logger.logTopUpFee(user, fee);
     }
 
     function _claimFee(address user, uint256 amount) private {

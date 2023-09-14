@@ -19,6 +19,9 @@ import {META} from "../../common/tokens/META.sol";
 import {RootChainManagerStorage} from "./RootChainManagerStorage.sol";
 import {RootChain} from "../RootChain.sol";
 
+import {IStakeManager} from "../staking/stakeManager/IStakeManager.sol";
+
+
 contract RootChainManager is
     Ownable,
     IRootChainManager,
@@ -367,6 +370,83 @@ contract RootChainManager is
 
         //TODO 이 컨트랙트 -> 사용자 토큰 트랜스퍼
         meta.transfer(withdrawal, amount);
+    }
+
+    function stake(
+        address registryAddr,
+        bytes calldata inputData,
+        address _user,
+        uint256 _amount,
+        uint256 _heimdallFee,
+        bool _acceptDelegation,
+        bytes memory _signerPubkey
+    ) external {
+
+        //TODO Get registry address, Ownerble
+        IStakeManager stakeManager = IStakeManager(registryAddr);
+
+        ExitPayloadReader.ExitPayload memory payload = inputData.toExitPayload();
+
+        bytes memory branchMaskBytes = payload.getBranchMaskAsBytes();
+        // checking if exit has already been processed
+        // unique exit is identified using hash of (blockNumber, branchMask, receiptLogIndex)
+
+        //TODO 테스트 이후 실행
+//        require(
+//            processedExits[payload.getTxRoot()] == false,
+//            "RootChainManager: EXIT_ALREADY_PROCESSED"
+//        );
+//        processedExits[payload.getTxRoot()] = true;
+//
+        ExitPayloadReader.Receipt memory receipt = payload.getReceipt();
+        ExitPayloadReader.Log memory log = receipt.getLog();
+
+        // log should be emmited only by the child token
+        address rootToken = childToRootToken[log.getEmitter()];
+
+        require(
+            rootToken != address(0),
+            "RootChainManager: TOKEN_NOT_MAPPED"
+        );
+
+        // branch mask can be maximum 32 bits
+        require(
+            payload.getBranchMaskAsUint() &
+            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000 ==
+            0,
+            "RootChainManager: INVALID_BRANCH_MASK"
+        );
+
+        // verify receipt inclusion
+        require(
+            MerklePatriciaProof.verify(
+                receipt.toBytes(),
+                branchMaskBytes,
+                payload.getReceiptProof(),
+                payload.getReceiptRoot()
+            ),
+            "RootChainManager: INVALID_PROOF"
+        );
+
+        // verify checkpoint inclusion
+        _checkBlockMembershipInCheckpoint(
+            payload.getBlockNumber(),
+            payload.getBlockTime(),
+            payload.getTxRoot(),
+            payload.getReceiptRoot(),
+            payload.getHeaderNumber(),
+            payload.getBlockProof()
+        );
+        RLPReader.RLPItem[] memory logRLPList = log.toRlpBytes().toRlpItem().toList();
+        RLPReader.RLPItem[] memory logTopicRLPList = logRLPList[1].toList();
+
+        address withdrawal = address(logTopicRLPList[2].toUint());
+        uint256 amount = logRLPList[2].toUint();
+        require(amount == _amount, "not equal staking amount");
+
+        META meta = META(rootToken); 
+        meta.mint(address(this), amount); // Lock L2 Meta and Mint to RootChainManager : 100
+        stakeManager.stakeFor(_user, _amount, _heildallFee, _acceptDelegation, _signerPubkey); // Lock to StakeManager: 100
     }
 
     function _checkBlockMembershipInCheckpoint(
