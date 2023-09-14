@@ -428,14 +428,17 @@ contract RootChainManager is
         );
 
         // verify checkpoint inclusion
-        _checkBlockMembershipInCheckpoint(
-            payload.getBlockNumber(),
-            payload.getBlockTime(),
-            payload.getTxRoot(),
-            payload.getReceiptRoot(),
-            payload.getHeaderNumber(),
-            payload.getBlockProof()
-        );
+        if (_rootChainStorage.getLastChildBlock() != 0) {
+            _checkBlockMembershipInCheckpoint(
+                payload.getBlockNumber(),
+                payload.getBlockTime(),
+                payload.getTxRoot(),
+                payload.getReceiptRoot(),
+                payload.getHeaderNumber(),
+                payload.getBlockProof()
+            );
+        }
+        
         RLPReader.RLPItem[] memory logRLPList = log.toRlpBytes().toRlpItem().toList();
         RLPReader.RLPItem[] memory logTopicRLPList = logRLPList[1].toList();
 
